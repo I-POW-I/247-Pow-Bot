@@ -1,0 +1,14 @@
+{
+  "name": "POW's 24/7 Discord Voice Channel Timer Bot",
+  "version": "1.2.0",
+  "description": "Discord bot that joins voice channels and stays to keep the call timer active until explicitly disconnected.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "0.16.1",
+    "discord.js": "^14.26.3",
+    "dotenv": "16.3.1"
+  }
+}

@@ -1,0 +1,7 @@
+# https://docs.discloud.com/en/discloud.config
+# Copy this file to discloud.config and fill in your own values
+
+ID=your_bot_id_here
+MAIN=index.js
+NAME=Your Bot Name
+AVATAR=https://your-avatar-url.png
