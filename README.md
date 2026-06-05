@@ -63,7 +63,7 @@ See `discloud.config` for hosting configuration.
 
 ```
 /join                          # Join your current voice channel
-/join channel: #announcements  # Join a specific channel
+/join channel: #Voice-Channel-1  # Join a specific channel
 /stay                          # Same as /join (needs reworking)
 /leave                         # Disconnect the bot
 ```
