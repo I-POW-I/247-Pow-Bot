@@ -82,7 +82,7 @@ function buildPanelEmbed(guildId) {
   }
 
   return new EmbedBuilder()
-    .setTitle('🤖 POW Bot — Control Panel')
+    .setTitle('🖤 24/7 POW Bot — Control Panel')
     .setColor(colour)
     .addFields(
       { name: 'Status',  value: statusLine,  inline: true },
