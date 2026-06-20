@@ -1,29 +1,13 @@
-/**
- * Two jobs in one file:
- *
- * 1. Presence updater — sets the bot's Discord status (the coloured dot + text)
- *    every 60 seconds based on what it's currently connected to.
- *    e.g. "🔊 General · 1h 14m"
- *
- * 2. updatePanel(client) — rebuilds and edits the control panel embed in every
- *    guild that has one set up. Call this whenever the bot joins, leaves,
- *    auto-rejoins, or force-leaves so the panel stays in sync.
- */
-
 const { ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
-const { log }           = require('./logger');
-const store             = require('./connectionStore');
+const { log }            = require('./logger');
+const store              = require('./connectionStore');
 const { getGuildConfig } = require('./guildConfig');
 
 const PRESENCE_INTERVAL = 60 * 1000; // 1 minute
 
 // ── Presence ──────────────────────────────────────────────────────────────────
 
-/**
- * Build a presence string based on current connections.
- * @returns {{ name: string, status: 'online'|'idle' }}
- */
 function buildPresence() {
   const entries = store.getAllEntries();
   const activeEntries = entries.filter(([guildId]) => {
@@ -45,24 +29,21 @@ function buildPresence() {
     return { name: `🔊 ${meta.channelName} · ${uptime}`, status: 'online' };
   }
 
-  // Multiple guilds connected
   return { name: `🔊 ${activeEntries.length} channels`, status: 'online' };
 }
 
-/**
- * Start the 60-second presence update loop.
- * @param {import('discord.js').Client} client
- */
 function startStatusUpdater(client) {
-  const update = () => {
+  const update = async () => {
     const { name, status } = buildPresence();
     client.user.setPresence({
       status,
       activities: [{ name, type: ActivityType.Custom }],
     });
+
+    // Refresh the panel embed every 60s so uptime stays live
+    await updatePanel(client);
   };
 
-  // Run immediately, then every 60s
   update();
   setInterval(update, PRESENCE_INTERVAL);
   log('INFO', 'Presence updater started (60s interval)');
@@ -70,11 +51,6 @@ function startStatusUpdater(client) {
 
 // ── Control Panel ─────────────────────────────────────────────────────────────
 
-/**
- * Build the control panel embed reflecting current bot state for a given guild.
- * @param {string} guildId
- * @returns {EmbedBuilder}
- */
 function buildPanelEmbed(guildId) {
   const entry = store.getEntry(guildId);
   const conn  = getVoiceConnection(guildId);
@@ -84,22 +60,22 @@ function buildPanelEmbed(guildId) {
     VoiceConnectionStatus.Signalling,
     VoiceConnectionStatus.Connecting,
   ].includes(conn.state.status);
-  const isGhost     = entry && !conn;
+  const isGhost = entry && !conn;
 
   let statusLine, channelLine, uptimeLine, colour;
 
   if (isConnected && entry) {
-    colour      = 0x57F287; // green
+    colour      = 0x57F287;
     statusLine  = '🟢 Connected';
     channelLine = `**${entry.channelName}**`;
     uptimeLine  = store.formatUptime(entry.joinedAt);
   } else if (isGhost) {
-    colour      = 0xFEE75C; // yellow
+    colour      = 0xFEE75C;
     statusLine  = '👻 Ghost — use Force Leave then Join';
     channelLine = entry.channelName;
     uptimeLine  = '—';
   } else {
-    colour      = 0xED4245; // red
+    colour      = 0xED4245;
     statusLine  = '🔴 Idle';
     channelLine = '—';
     uptimeLine  = '—';
@@ -117,9 +93,6 @@ function buildPanelEmbed(guildId) {
     .setTimestamp();
 }
 
-/**
- * The row of buttons shown on the control panel.
- */
 function buildPanelButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -148,11 +121,6 @@ function buildPanelButtons() {
   );
 }
 
-/**
- * Edit the saved panel message for every guild that has one configured.
- * Safe to call after any state change (join, leave, auto-rejoin etc.)
- * @param {import('discord.js').Client} client
- */
 async function updatePanel(client) {
   for (const guild of client.guilds.cache.values()) {
     const config = getGuildConfig(guild.id);
@@ -168,7 +136,6 @@ async function updatePanel(client) {
         components: [buildPanelButtons()],
       });
     } catch (err) {
-      // Panel message may have been deleted — not fatal, just log it
       log('WARN', 'Could not update panel message', { guild: guild.name, error: err.message });
     }
   }
