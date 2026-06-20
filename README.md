@@ -4,7 +4,6 @@ A simple Discord bot designed to stay in voice channels indefinitely, keeping ca
 
 ## ✨ Features
 - **`/join`** — Bot joins your current voice channel (or specified channel)
-- **`/stay`** — Same as join, keeps the bot persistent in the channel
 - **`/leave`** — Bot disconnects from the voice channel
 - **Channel Selection** — Optional parameter to specify a different voice channel
 - **Auto-Reconnect** — Attempts to reconnect if disconnected unexpectedly
@@ -64,7 +63,6 @@ See `discloud.config` for hosting configuration.
 ```
 /join                          # Join your current voice channel
 /join channel: #Voice-Channel-1  # Join a specific channel
-/stay                          # Same as /join (needs reworking)
 /leave                         # Disconnect the bot
 ```
 
@@ -76,7 +74,8 @@ See `discloud.config` for hosting configuration.
 - User statistics dashboard
 - Auto-role assignment
 - Streaming notifications
-
+- Full logging system
+- Live status to see it's connected to a channel
 
 ## ⚙️ Troubleshooting:
 **Bot won't join:**
