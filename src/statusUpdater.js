@@ -28,7 +28,11 @@ function buildPresence() {
   const entries = store.getAllEntries();
   const activeEntries = entries.filter(([guildId]) => {
     const conn = getVoiceConnection(guildId);
-    return conn && conn.state.status === VoiceConnectionStatus.Ready;
+    return conn && [
+      VoiceConnectionStatus.Ready,
+      VoiceConnectionStatus.Signalling,
+      VoiceConnectionStatus.Connecting,
+    ].includes(conn.state.status);
   });
 
   if (activeEntries.length === 0) {
@@ -75,7 +79,11 @@ function buildPanelEmbed(guildId) {
   const entry = store.getEntry(guildId);
   const conn  = getVoiceConnection(guildId);
 
-  const isConnected = conn && conn.state.status === VoiceConnectionStatus.Ready;
+  const isConnected = conn && [
+    VoiceConnectionStatus.Ready,
+    VoiceConnectionStatus.Signalling,
+    VoiceConnectionStatus.Connecting,
+  ].includes(conn.state.status);
   const isGhost     = entry && !conn;
 
   let statusLine, channelLine, uptimeLine, colour;
