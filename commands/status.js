@@ -9,7 +9,7 @@ const STATUS_LABELS = {
   [VoiceConnectionStatus.Connecting]:   '🟡 Connecting...',
   [VoiceConnectionStatus.Signalling]:   '🟡 Signalling...',
   [VoiceConnectionStatus.Disconnected]: '🔴 Disconnected',
-  [VoiceConnectionStatus.Destroyed]:    '💀 Destroyed (ghost)',
+  [VoiceConnectionStatus.Destroyed]:    '💀 Destroyed',
 };
 
 module.exports = {
@@ -35,7 +35,7 @@ module.exports = {
       : '⚫ Not connected';
 
     const embed = new EmbedBuilder()
-      .setTitle('🤖 POW Bot Status')
+      .setTitle('🖤 POW Bot Status')
       .setColor(isConnected ? 0x57F287 : 0xED4245)
       .setTimestamp()
       .setFooter({ text: `Requested by ${interaction.user.tag}` });
