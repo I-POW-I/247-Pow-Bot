@@ -1,10 +1,11 @@
 {
-  "name": "POW's 24/7 Discord Voice Channel Timer Bot",
-  "version": "1.2.0",
-  "description": "Discord bot that joins voice channels and stays to keep the call timer active until explicitly disconnected.",
+  "name": "247-pow-bot",
+  "version": "2.0.0",
+  "description": "Discord bot that stays in voice channels 24/7 with ghost connection recovery, auto-rejoin, and structured logging.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
   },
   "dependencies": {
     "@discordjs/voice": "0.16.1",
