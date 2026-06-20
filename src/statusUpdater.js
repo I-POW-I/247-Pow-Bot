@@ -20,7 +20,7 @@ function buildPresence() {
   });
 
   if (activeEntries.length === 0) {
-    return { name: 'Idle — use /join', status: 'idle' };
+    return { name: 'Sleeping', status: 'idle' };
   }
 
   if (activeEntries.length === 1) {
@@ -110,14 +110,8 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
       .setLabel('Force Leave')
-      .setEmoji('💀')
+      .setEmoji('🔌')
       .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId('bot_status')
-      .setLabel('Status')
-      .setEmoji('📊')
-      .setStyle(ButtonStyle.Primary),
   );
 }
 
