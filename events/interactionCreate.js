@@ -166,15 +166,6 @@ module.exports = {
         });
       }
 
-      // ── Status button ─────────────────────────────────────────────────────
-      if (interaction.customId === 'bot_status') {
-        // Reuse the /status command logic
-        const statusCommand = client.commands.get('status');
-        if (statusCommand) {
-          await statusCommand.execute(interaction, client);
-        }
-        return;
-      }
     }
   },
 };
