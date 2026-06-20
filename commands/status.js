@@ -23,8 +23,11 @@ module.exports = {
     const connection = getVoiceConnection(guild.id);
     const entry = store.getEntry(guild.id);
 
-    const isConnected = connection &&
-      connection.state.status === VoiceConnectionStatus.Ready;
+    const isConnected = connection && [
+      VoiceConnectionStatus.Ready,
+      VoiceConnectionStatus.Signalling,
+      VoiceConnectionStatus.Connecting,
+    ].includes(connection.state.status);
 
     const rawStatus = connection?.state?.status;
     const statusLabel = rawStatus
