@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Events, Partials, REST, Routes, SlashCommandBuilder, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder, ChannelType, MessageFlags } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const dotenv = require('dotenv');
 
@@ -10,6 +10,7 @@ if (!token) {
   process.exit(1);
 }
 
+// Cleaned up registry: Removed 'stay' command entirely
 const commands = [
   new SlashCommandBuilder()
     .setName('join')
@@ -22,16 +23,8 @@ const commands = [
         .setRequired(false)
     ),
   new SlashCommandBuilder()
-    .setName('stay')
-    .setDescription('Bring the bot into a specified voice channel and keep it there')
-    .addChannelOption(option =>
-      option
-        .setName('channel')
-        .setDescription('Voice channel to join')
-        .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
-        .setRequired(false)
-    ),
-  new SlashCommandBuilder().setName('leave').setDescription('Disconnect the bot from the voice channel')
+    .setName('leave')
+    .setDescription('Disconnect the bot from the voice channel')
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(token);
@@ -40,8 +33,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates
-  ],
-  partials: [Partials.Channel]
+  ]
 });
 
 function setupVoiceConnectionHandler(connection, channelName) {
@@ -66,16 +58,17 @@ client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   try {
-    if (!process.env.CLIENT_ID || !process.env.GUILD_ID) {
-      throw new Error('Missing CLIENT_ID or GUILD_ID in .env');
+    if (!process.env.CLIENT_ID) {
+      throw new Error('Missing CLIENT_ID in .env');
     }
 
-    await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), {
+    // Now registering GLOBAL commands across all servers
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
       body: commands
     });
-    console.log('Slash commands registered successfully.');
+    console.log('Global slash commands registered successfully.');
   } catch (error) {
-    console.error('Failed to register commands:', error);
+    console.error('Failed to register global commands:', error);
   }
 });
 
@@ -84,34 +77,54 @@ client.on(Events.InteractionCreate, async interaction => {
 
   const { commandName, guild, member } = interaction;
 
-  if (commandName === 'join' || commandName === 'stay') {
+  if (commandName === 'join') {
     const targetChannel = interaction.options.getChannel('channel') || member.voice.channel;
+    
     if (!targetChannel || !targetChannel.isVoiceBased()) {
-      return interaction.reply({ content: 'You need to specify a voice channel or be in one for me to join.', ephemeral: true });
+      return interaction.reply({ 
+        content: 'You need to specify a voice channel or be in one for me to join.', 
+        flags: [MessageFlags.Ephemeral] 
+      });
     }
 
     const existingConnection = getVoiceConnection(guild.id);
     if (existingConnection) {
-      return interaction.reply({ content: 'I am already connected to a voice channel in this server.', ephemeral: true });
+      return interaction.reply({ 
+        content: 'I am already connected to a voice channel in this server.', 
+        flags: [MessageFlags.Ephemeral] 
+      });
     }
 
-    const connection = joinVoiceChannel({
-      channelId: targetChannel.id,
-      guildId: guild.id,
-      adapterCreator: guild.voiceAdapterCreator,
-      selfDeaf: false,
-      selfMute: true
-    });
+    try {
+      const connection = joinVoiceChannel({
+        channelId: targetChannel.id,
+        guildId: guild.id,
+        adapterCreator: guild.voiceAdapterCreator,
+        selfDeaf: true,
+        selfMute: true
+      });
 
-    setupVoiceConnectionHandler(connection, targetChannel.name);
+      setupVoiceConnectionHandler(connection, targetChannel.name);
 
-    return interaction.reply({ content: `Joined ${targetChannel.name}. I will stay until the host provider goes down or discord shits the bed.` });
+      return interaction.reply({ 
+        content: `Joined ${targetChannel.name}. I will stay until the host provider goes down or discord shits the bed.` 
+      });
+    } catch (voiceError) {
+      console.error('Failed to join voice channel:', voiceError);
+      return interaction.reply({ 
+        content: 'Failed to join the channel. Check my permissions!', 
+        flags: [MessageFlags.Ephemeral] 
+      });
+    }
   }
 
   if (commandName === 'leave') {
     const connection = getVoiceConnection(guild.id);
     if (!connection) {
-      return interaction.reply({ content: 'Are you blind?... I am not connected to a voice channel right now.', ephemeral: true });
+      return interaction.reply({ 
+        content: 'Are you blind?... I am not connected to a voice channel right now.', 
+        flags: [MessageFlags.Ephemeral] 
+      });
     }
 
     connection.destroy();
