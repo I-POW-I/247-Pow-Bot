@@ -1,9 +1,10 @@
 const { Events, PermissionFlagsBits, MessageFlags, ActivityType } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
-const { log }                = require('../src/logger');
-const store                  = require('../src/connectionStore');
+const { log }                     = require('../src/logger');
+const store                       = require('../src/connectionStore');
 const { attachDisconnectHandler } = require('../src/heartbeat');
-const { updatePanel }        = require('../src/statusUpdater');
+const { updatePanel }             = require('../src/statusUpdater');
+const { setLastChannel, clearLastChannel } = require('../src/guildConfig');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -55,7 +56,6 @@ module.exports = {
           });
         }
 
-        // Ghost-aware check
         const existingConn = getVoiceConnection(guild.id);
         if (existingConn) {
           const healthyStatuses = [VoiceConnectionStatus.Ready, VoiceConnectionStatus.Signalling, VoiceConnectionStatus.Connecting];
@@ -85,6 +85,9 @@ module.exports = {
             channelName: targetChannel.name,
             guildName:   guild.name,
           });
+
+          // Save so bot can rejoin this channel after a restart
+          setLastChannel(guild.id, targetChannel.id);
 
           client.user.setPresence({
             status: 'online',
@@ -120,6 +123,7 @@ module.exports = {
 
         if (conn) { try { conn.destroy(); } catch (_) {} }
         store.clearConnection(guild.id);
+        clearLastChannel(guild.id);
 
         client.user.setPresence({
           status: 'idle',
@@ -148,6 +152,7 @@ module.exports = {
         const hadEntry = store.getEntry(guild.id);
         if (conn) { try { conn.destroy(); } catch (_) {} }
         store.clearConnection(guild.id);
+        clearLastChannel(guild.id);
 
         client.user.setPresence({
           status: 'idle',
@@ -165,7 +170,6 @@ module.exports = {
           flags: [MessageFlags.Ephemeral],
         });
       }
-
     }
   },
 };
