@@ -6,6 +6,7 @@ const { startStatusUpdater, updatePanel }         = require('../src/statusUpdate
 const { getGuildConfig, getStats, setStats }      = require('../src/guildConfig');
 const store                                        = require('../src/connectionStore');
 const { attachSilencePlayer }                      = require('../src/audioPlayer');
+const { initGuild }                                = require('../src/memberTracker');
 
 module.exports = {
   name: Events.ClientReady,
@@ -52,17 +53,31 @@ module.exports = {
         attachDisconnectHandler(connection, guild.name, channel.name);
         attachSilencePlayer(connection, guild.id);
 
-        // Restore persisted stats so uptime + reconnect count survive restarts
+        // Restore persisted stats so uptime survives non-deploy restarts
         const saved = getStats(guild.id);
+        const joinedAt       = saved.joinedAt       || new Date();
+        const reconnectCount = saved.reconnectCount  || 0;
+
         store.setConnection(guild.id, {
-          channelId:      channel.id,
-          channelName:    channel.name,
-          guildName:      guild.name,
-          joinedAt:       saved.joinedAt || new Date(),
-          reconnectCount: saved.reconnectCount || 0,
+          channelId:   channel.id,
+          channelName: channel.name,
+          guildName:   guild.name,
+          joinedAt,
+          reconnectCount,
         });
 
-        log('VOICE', 'Auto-rejoined on startup', { guild: guild.name, channel: channel.name });
+        // Re-save stats so they stay current after this restart
+        setStats(guild.id, { joinedAt, reconnectCount });
+
+        // Seed join times for members already in the channel
+        // so duration tracking works rather than showing Unknown
+        initGuild(guild);
+
+        log('VOICE', 'Auto-rejoined on startup', {
+          guild:   guild.name,
+          channel: channel.name,
+          uptime:  store.formatUptime(joinedAt),
+        });
         rejoined++;
 
       } catch (err) {
