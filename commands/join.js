@@ -1,9 +1,10 @@
 const { SlashCommandBuilder, ChannelType, MessageFlags, ActivityType } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
-const { log }                    = require('../src/logger');
-const store                      = require('../src/connectionStore');
+const { log }                     = require('../src/logger');
+const store                       = require('../src/connectionStore');
 const { attachDisconnectHandler } = require('../src/heartbeat');
-const { updatePanel }            = require('../src/statusUpdater');
+const { updatePanel }             = require('../src/statusUpdater');
+const { setLastChannel }          = require('../src/guildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -62,11 +63,15 @@ module.exports = {
       });
 
       attachDisconnectHandler(connection, guild.name, targetChannel.name);
+
       store.setConnection(guild.id, {
         channelId:   targetChannel.id,
         channelName: targetChannel.name,
         guildName:   guild.name,
       });
+
+      // Save to disk so we can rejoin this channel after a restart
+      setLastChannel(guild.id, targetChannel.id);
 
       client.user.setPresence({
         status: 'online',
@@ -79,7 +84,6 @@ module.exports = {
         by:      member.user.tag,
       });
 
-      // Update the control panel embed in this guild
       await updatePanel(client);
 
       return interaction.reply({
