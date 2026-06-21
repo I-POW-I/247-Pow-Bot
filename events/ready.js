@@ -1,10 +1,11 @@
 const { Events } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice');
-const { log }                    = require('../src/logger');
+const { log }                     = require('../src/logger');
 const { startHeartbeat, attachDisconnectHandler } = require('../src/heartbeat');
-const { startStatusUpdater, updatePanel } = require('../src/statusUpdater');
-const { getGuildConfig }         = require('../src/guildConfig');
-const store                      = require('../src/connectionStore');
+const { startStatusUpdater, updatePanel }         = require('../src/statusUpdater');
+const { getGuildConfig, getStats, setStats }      = require('../src/guildConfig');
+const store                                        = require('../src/connectionStore');
+const { attachSilencePlayer }                      = require('../src/audioPlayer');
 
 module.exports = {
   name: Events.ClientReady,
@@ -14,7 +15,7 @@ module.exports = {
     log('INFO', `Logged in as ${client.user.tag}`);
     log('INFO', `Serving ${client.guilds.cache.size} guild(s)`);
 
-    // ── Register slash commands globally ──────────────────────────────────────
+    // ── Register slash commands ───────────────────────────────────────────────
     try {
       const { REST, Routes } = require('discord.js');
       const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
@@ -25,9 +26,7 @@ module.exports = {
       log('ERROR', 'Failed to register slash commands', { error: err.message });
     }
 
-    // ── Auto-rejoin last known channels ───────────────────────────────────────
-    // Loops every guild the bot is in, checks guild-config.json for a saved
-    // lastChannelId, and rejoins it automatically if found.
+    // ── Auto-rejoin last known channels ──────────────────────────────────────
     log('INFO', 'Checking for channels to auto-rejoin...');
     let rejoined = 0;
 
@@ -37,9 +36,8 @@ module.exports = {
 
       try {
         const channel = await guild.channels.fetch(config.lastChannelId);
-
         if (!channel || !channel.isVoiceBased()) {
-          log('WARN', 'Saved channel no longer exists — skipping auto-rejoin', { guild: guild.name });
+          log('WARN', 'Saved channel no longer exists — skipping', { guild: guild.name });
           continue;
         }
 
@@ -48,14 +46,20 @@ module.exports = {
           guildId:        guild.id,
           adapterCreator: guild.voiceAdapterCreator,
           selfDeaf:       true,
-          selfMute:       true,
+          selfMute:       false,
         });
 
         attachDisconnectHandler(connection, guild.name, channel.name);
+        attachSilencePlayer(connection, guild.id);
+
+        // Restore persisted stats so uptime + reconnect count survive restarts
+        const saved = getStats(guild.id);
         store.setConnection(guild.id, {
-          channelId:   channel.id,
-          channelName: channel.name,
-          guildName:   guild.name,
+          channelId:      channel.id,
+          channelName:    channel.name,
+          guildName:      guild.name,
+          joinedAt:       saved.joinedAt || new Date(),
+          reconnectCount: saved.reconnectCount || 0,
         });
 
         log('VOICE', 'Auto-rejoined on startup', { guild: guild.name, channel: channel.name });
@@ -66,17 +70,11 @@ module.exports = {
       }
     }
 
-    if (rejoined > 0) {
-      log('INFO', `Auto-rejoined ${rejoined} channel(s)`);
-    } else {
-      log('INFO', 'No channels to auto-rejoin');
-    }
+    log('INFO', rejoined > 0 ? `Auto-rejoined ${rejoined} channel(s)` : 'No channels to auto-rejoin');
 
-    // ── Start background tasks ─────────────────────────────────────────────────
+    // ── Start background tasks ────────────────────────────────────────────────
     startHeartbeat(client);
     startStatusUpdater(client);
-
-    // Refresh all panel embeds now that we may have rejoined channels
     await updatePanel(client);
 
     log('INFO', 'Bot fully ready');
