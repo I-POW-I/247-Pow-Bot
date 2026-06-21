@@ -1,6 +1,6 @@
-# 247 POW Bot
+# 24/7 POW Bot
 
-A Discord bot that sits in a voice channel and stays there. That's basically it.
+A Discord bot that sits in a voice channel and stays there showing voice channel logs. That's basically it.
 
 Built because Discord kicks you out of empty calls — this keeps the channel "active" so timers keep running and the call stays open even with nobody in it.
 
@@ -28,32 +28,6 @@ Built because Discord kicks you out of empty calls — this keeps the channel "a
 | `/setlogchannel` | Sets which channel voice logs get posted to | Manage Server |
 
 ---
-
-## Setup
-
-### Requirements
-
-- Node.js v18+
-- A bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
-
-### Install
-
-```bash
-git clone https://github.com/OhhPOW/247-Pow-Bot
-cd 247-Pow-Bot
-npm install
-```
-
-Copy `.env.example` to `.env` and fill in your values:
-
-```
-BOT_TOKEN=your token here
-CLIENT_ID=your application id here
-```
-
-```bash
-node index.js
-```
 
 ### Developer Portal settings
 
@@ -93,28 +67,3 @@ Config is stored in `data/guild-config.json` — this file is gitignored so it w
 
 ---
 
-## File structure
-
-```
-├── index.js               Entry point
-├── deploy-commands.js     Run manually to push slash commands
-├── commands/              One file per slash command
-├── events/                Discord event handlers
-├── src/
-│   ├── client.js          Discord client setup
-│   ├── connectionStore.js Tracks active VC connections + uptime
-│   ├── guildConfig.js     Per-guild settings (log channel, panel etc.)
-│   ├── heartbeat.js       Ghost detection + auto-rejoin
-│   ├── logger.js          Timestamped logging
-│   ├── registry.js        Auto-loads commands and events on startup
-│   └── statusUpdater.js   Bot presence + live panel updates
-└── data/                  Guild config JSON (gitignored)
-```
-
----
-
-## The ghost connection thing
-
-Occasionally Discord drops the bot from a call silently — no disconnect event fires, so the bot thinks it's still connected but it isn't. This used to cause `/join` to error saying it was already in a channel when it wasn't.
-
-The fix: the bot runs a health check every 2 minutes. If a connection is stale it destroys it and rejoins the same channel automatically. If for some reason that doesn't sort it, `/forceleave` clears everything so you can do a fresh `/join`.
