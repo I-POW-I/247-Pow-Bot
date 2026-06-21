@@ -1,13 +1,11 @@
 const { getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
-const { log }   = require('./logger');
-const store     = require('./connectionStore');
+const { log }                   = require('./logger');
+const store                     = require('./connectionStore');
+const { setStats }              = require('./guildConfig');
+const { attachSilencePlayer }   = require('./audioPlayer');
 
 const HEARTBEAT_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
-/**
- * Start the heartbeat loop.
- * @param {import('discord.js').Client} client
- */
 function startHeartbeat(client) {
   log('HEART', 'Heartbeat started — checking every 2 minutes');
 
@@ -37,8 +35,7 @@ function startHeartbeat(client) {
 
       // Ghost detected
       log('GHOST', 'Ghost connection detected — attempting auto-rejoin', {
-        guild:   meta.guildName,
-        channel: meta.channelName,
+        guild: meta.guildName, channel: meta.channelName,
       });
 
       if (conn) { try { conn.destroy(); } catch (_) {} }
@@ -58,19 +55,21 @@ function startHeartbeat(client) {
           guildId:        guild.id,
           adapterCreator: guild.voiceAdapterCreator,
           selfDeaf:       true,
-          selfMute:       true,
+          selfMute:       false,
         });
 
         attachDisconnectHandler(newConn, guild.name, channel.name);
+        attachSilencePlayer(newConn, guild.id);
         store.incrementReconnect(guildId);
 
-        log('VOICE', 'Auto-rejoined successfully after ghost', {
-          guild:          guild.name,
-          channel:        channel.name,
-          reconnectCount: store.getEntry(guildId)?.reconnectCount,
+        // Persist updated stats
+        const entry = store.getEntry(guildId);
+        if (entry) setStats(guildId, { joinedAt: entry.joinedAt, reconnectCount: entry.reconnectCount });
+
+        log('VOICE', 'Auto-rejoined after ghost', {
+          guild: guild.name, channel: channel.name, reconnects: store.getEntry(guildId)?.reconnectCount,
         });
 
-        // Update panel to reflect the reconnect
         const { updatePanel } = require('./statusUpdater');
         await updatePanel(client);
 
@@ -82,15 +81,9 @@ function startHeartbeat(client) {
   }, HEARTBEAT_INTERVAL);
 }
 
-/**
- * Attach disconnect/error listeners to a VoiceConnection.
- * @param {import('@discordjs/voice').VoiceConnection} connection
- * @param {string} guildName
- * @param {string} channelName
- */
 function attachDisconnectHandler(connection, guildName, channelName) {
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
-    log('VOICE', 'Disconnected event fired — attempting quick reconnect', { guild: guildName, channel: channelName });
+    log('VOICE', 'Disconnected — attempting quick reconnect', { guild: guildName, channel: channelName });
 
     try {
       const { entersState } = require('@discordjs/voice');
