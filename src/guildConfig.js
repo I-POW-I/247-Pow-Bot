@@ -4,14 +4,10 @@
  * Shape:
  * {
  *   [guildId]: {
- *     logChannels: {
- *       voice:    "channelId",
- *       messages: "channelId",
- *       members:  "channelId",
- *     },
- *     panelChannelId:  "channelId",
- *     panelMessageId:  "messageId",
- *     lastChannelId:   "channelId",   ← last VC the bot was in, for auto-rejoin
+ *     logChannels:    { voice, messages, members },
+ *     panelChannelId, panelMessageId,
+ *     lastChannelId,
+ *     stats:          { joinedAt, reconnectCount }   ← persisted across restarts
  *   }
  * }
  */
@@ -22,11 +18,8 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, '..', 'data', 'guild-config.json');
 
 function readAll() {
-  try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
+  catch { return {}; }
 }
 
 function writeAll(data) {
@@ -45,8 +38,7 @@ function setGuildConfig(guildId, updates) {
 }
 
 function getLogChannel(guildId, type) {
-  const config = getGuildConfig(guildId);
-  return config.logChannels?.[type] || null;
+  return getGuildConfig(guildId).logChannels?.[type] || null;
 }
 
 function setLogChannel(guildId, type, channelId) {
@@ -57,10 +49,6 @@ function setLogChannel(guildId, type, channelId) {
   writeAll(all);
 }
 
-/**
- * Save the last known voice channel the bot was in for a guild.
- * Used by ready.js to auto-rejoin after a restart.
- */
 function setLastChannel(guildId, channelId) {
   const all = readAll();
   if (!all[guildId]) all[guildId] = {};
@@ -68,10 +56,6 @@ function setLastChannel(guildId, channelId) {
   writeAll(all);
 }
 
-/**
- * Clear the saved channel — called on /leave and /forceleave
- * so the bot doesn't rejoin a channel it was told to leave.
- */
 function clearLastChannel(guildId) {
   const all = readAll();
   if (all[guildId]) {
@@ -80,11 +64,38 @@ function clearLastChannel(guildId) {
   }
 }
 
+/**
+ * Persist uptime stats so they survive restarts.
+ * @param {string} guildId
+ * @param {{ joinedAt: Date, reconnectCount: number }} stats
+ */
+function setStats(guildId, { joinedAt, reconnectCount }) {
+  const all = readAll();
+  if (!all[guildId]) all[guildId] = {};
+  all[guildId].stats = {
+    joinedAt:       joinedAt instanceof Date ? joinedAt.toISOString() : joinedAt,
+    reconnectCount: reconnectCount || 0,
+  };
+  writeAll(all);
+}
+
+/**
+ * Get persisted stats for a guild.
+ * @param {string} guildId
+ * @returns {{ joinedAt: Date|null, reconnectCount: number }}
+ */
+function getStats(guildId) {
+  const raw = getGuildConfig(guildId).stats;
+  if (!raw) return { joinedAt: null, reconnectCount: 0 };
+  return {
+    joinedAt:       raw.joinedAt ? new Date(raw.joinedAt) : null,
+    reconnectCount: raw.reconnectCount || 0,
+  };
+}
+
 module.exports = {
-  getGuildConfig,
-  setGuildConfig,
-  getLogChannel,
-  setLogChannel,
-  setLastChannel,
-  clearLastChannel,
+  getGuildConfig, setGuildConfig,
+  getLogChannel,  setLogChannel,
+  setLastChannel, clearLastChannel,
+  setStats,       getStats,
 };
