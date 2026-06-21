@@ -41,11 +41,11 @@ module.exports = {
       return;
     }
 
-    // ── Button interactions (control panel) ───────────────────────────────────
+    // ── Button interactions ───────────────────────────────────────────────────
     if (interaction.isButton()) {
       const { guild, member } = interaction;
 
-      // ── Join button ──────────────────────────────────────────────────────
+      // ── Join ─────────────────────────────────────────────────────────────
       if (interaction.customId === 'bot_join') {
         const targetChannel = member.voice?.channel;
 
@@ -80,13 +80,7 @@ module.exports = {
           });
 
           attachDisconnectHandler(connection, guild.name, targetChannel.name);
-          store.setConnection(guild.id, {
-            channelId:   targetChannel.id,
-            channelName: targetChannel.name,
-            guildName:   guild.name,
-          });
-
-          // Save so bot can rejoin this channel after a restart
+          store.setConnection(guild.id, { channelId: targetChannel.id, channelName: targetChannel.name, guildName: guild.name });
           setLastChannel(guild.id, targetChannel.id);
 
           client.user.setPresence({
@@ -97,55 +91,38 @@ module.exports = {
           log('VOICE', 'Joined via panel button', { guild: guild.name, channel: targetChannel.name, by: member.user.tag });
           await updatePanel(client);
 
-          return interaction.reply({
-            content: `✅ Joined **${targetChannel.name}**.`,
-            flags: [MessageFlags.Ephemeral],
-          });
-        } catch (err) {
-          return interaction.reply({
-            content: '❌ Failed to join — check I have the **Connect** permission.',
-            flags: [MessageFlags.Ephemeral],
-          });
+          return interaction.reply({ content: `✅ Joined **${targetChannel.name}**.`, flags: [MessageFlags.Ephemeral] });
+
+        } catch {
+          return interaction.reply({ content: '❌ Failed to join — check I have the **Connect** permission.', flags: [MessageFlags.Ephemeral] });
         }
       }
 
-      // ── Leave button ─────────────────────────────────────────────────────
+      // ── Leave ─────────────────────────────────────────────────────────────
       if (interaction.customId === 'bot_leave') {
         const conn  = getVoiceConnection(guild.id);
         const entry = store.getEntry(guild.id);
 
         if (!conn && !entry) {
-          return interaction.reply({
-            content: "❌ I'm not connected to any voice channel.",
-            flags: [MessageFlags.Ephemeral],
-          });
+          return interaction.reply({ content: "❌ I'm not connected to any voice channel.", flags: [MessageFlags.Ephemeral] });
         }
 
         if (conn) { try { conn.destroy(); } catch (_) {} }
         store.clearConnection(guild.id);
         clearLastChannel(guild.id);
 
-        client.user.setPresence({
-          status: 'idle',
-          activities: [{ name: 'Idle — use /join', type: ActivityType.Custom }],
-        });
+        client.user.setPresence({ status: 'idle', activities: [{ name: 'Idle — use /join', type: ActivityType.Custom }] });
 
         log('VOICE', 'Left via panel button', { guild: guild.name, by: member.user.tag });
         await updatePanel(client);
 
-        return interaction.reply({
-          content: `👋 Disconnected from **${entry?.channelName || 'the voice channel'}**.`,
-          flags: [MessageFlags.Ephemeral],
-        });
+        return interaction.reply({ content: `👋 Disconnected from **${entry?.channelName || 'the voice channel'}**.`, flags: [MessageFlags.Ephemeral] });
       }
 
-      // ── Force Leave button ────────────────────────────────────────────────
+      // ── Force Leave ───────────────────────────────────────────────────────
       if (interaction.customId === 'bot_forceleave') {
         if (!member.permissions.has(PermissionFlagsBits.MoveMembers)) {
-          return interaction.reply({
-            content: '🚫 You need the **Move Members** permission to use Force Leave.',
-            flags: [MessageFlags.Ephemeral],
-          });
+          return interaction.reply({ content: '🚫 You need the **Move Members** permission to use Force Leave.', flags: [MessageFlags.Ephemeral] });
         }
 
         const conn     = getVoiceConnection(guild.id);
@@ -154,21 +131,22 @@ module.exports = {
         store.clearConnection(guild.id);
         clearLastChannel(guild.id);
 
-        client.user.setPresence({
-          status: 'idle',
-          activities: [{ name: 'Idle — use /join', type: ActivityType.Custom }],
-        });
+        client.user.setPresence({ status: 'idle', activities: [{ name: 'Idle — use /join', type: ActivityType.Custom }] });
 
         log('VOICE', 'Force leave via panel button', { guild: guild.name, by: member.user.tag });
         await updatePanel(client);
 
         const wasGhost = !conn && hadEntry;
         return interaction.reply({
-          content: wasGhost
-            ? '👻 Ghost cleared. All state wiped. You can now use Join again.'
-            : '🔴 Force disconnected. All state cleared.',
+          content: wasGhost ? '👻 Ghost cleared. All state wiped. You can now use Join again.' : '🔴 Force disconnected. All state cleared.',
           flags: [MessageFlags.Ephemeral],
         });
+      }
+
+      // ── Refresh ───────────────────────────────────────────────────────────
+      if (interaction.customId === 'bot_refresh') {
+        await updatePanel(client);
+        return interaction.reply({ content: '🔄 Panel refreshed.', flags: [MessageFlags.Ephemeral] });
       }
     }
   },
