@@ -1,8 +1,9 @@
 const { SlashCommandBuilder, MessageFlags, ActivityType } = require('discord.js');
 const { getVoiceConnection } = require('@discordjs/voice');
-const { log }         = require('../src/logger');
-const store           = require('../src/connectionStore');
-const { updatePanel } = require('../src/statusUpdater');
+const { log }              = require('../src/logger');
+const store                = require('../src/connectionStore');
+const { updatePanel }      = require('../src/statusUpdater');
+const { clearLastChannel } = require('../src/guildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,6 +25,9 @@ module.exports = {
 
     if (connection) { try { connection.destroy(); } catch (_) {} }
     store.clearConnection(guild.id);
+
+    // Clear the saved channel so bot doesn't rejoin on next restart
+    clearLastChannel(guild.id);
 
     client.user.setPresence({
       status: 'idle',
