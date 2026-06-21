@@ -1,6 +1,6 @@
 {
   "name": "247-pow-bot",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Discord bot that stays in voice channels 24/7 with ghost connection recovery, auto-rejoin, and structured logging.",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,8 @@
   "dependencies": {
     "@discordjs/voice": "0.16.1",
     "discord.js": "^14.26.3",
-    "dotenv": "16.3.1"
+    "dotenv": "16.3.1",
+    "libsodium-wrappers": "^0.7.13",
+    "opusscript": "^0.1.1"
   }
 }
