@@ -1,117 +1,67 @@
 /**
- * Fires every time ANYONE's voice state changes in any guild the bot is in.
- * This covers: joining a VC, leaving a VC, moving between VCs,
- * server mute/unmute, server deafen/undeafen, starting/stopping a stream.
- *
- * We skip self-mute/unmute and self-deafen/undeafen because those fire
- * constantly and would spam the log channel.
- * We also skip bots (including ourselves).
+ * Logs all voice activity to the guild's configured voice log channel.
+ * Tracks join times per member so leave/stream-stop embeds show duration.
+ * Skips: self-mute, self-deafen, bots.
  */
 
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { log }            = require('../src/logger');
-const { getGuildConfig } = require('../src/guildConfig');
+const { log }           = require('../src/logger');
+const { getLogChannel } = require('../src/guildConfig');
 
-// ── Colour palette for different event types ──────────────────────────────────
-const COLOURS = {
-  join:             0x57F287, // green
-  leave:            0xED4245, // red
-  move:             0x5865F2, // blurple
-  serverMute:       0xFF7043, // orange
-  serverUnmute:     0xFEE75C, // yellow
-  serverDeafen:     0xFF7043,
-  serverUndeafen:   0xFEE75C,
-  streamStart:      0x9C59D1, // purple
-  streamStop:       0x9ca3af, // grey
+// Track when each member joined a channel / started streaming
+// Key: `${guildId}_${userId}`
+const joinTimes   = new Map();
+const streamTimes = new Map();
+
+const C = {
+  join:           0x57F287,
+  leave:          0xED4245,
+  move:           0x5865F2,
+  serverMute:     0xFF7043,
+  serverUnmute:   0x57F287,
+  serverDeafen:   0xFF7043,
+  serverUndeafen: 0x57F287,
+  streamStart:    0x9C59D1,
+  streamStop:     0x747F8D,
 };
 
-// ── Event builder helpers ─────────────────────────────────────────────────────
-
-function joinEmbed(member, channel) {
+function base(member, colour, title) {
   return new EmbedBuilder()
-    .setColor(COLOURS.join)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(`📥 **${member.displayName}** joined **${channel.name}**`)
-    .addFields({ name: 'Channel', value: `<#${channel.id}>`, inline: true })
-    .setTimestamp();
+    .setColor(colour)
+    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
+    .setTitle(title)
+    .setTimestamp()
+    .setFooter({ text: `User ID: ${member.user.id}` });
 }
 
-function leaveEmbed(member, channel) {
-  return new EmbedBuilder()
-    .setColor(COLOURS.leave)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(`📤 **${member.displayName}** left **${channel.name}**`)
-    .addFields({ name: 'Channel', value: `<#${channel.id}>`, inline: true })
-    .setTimestamp();
+function formatDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
 }
 
-function moveEmbed(member, fromChannel, toChannel) {
-  return new EmbedBuilder()
-    .setColor(COLOURS.move)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(`🔀 **${member.displayName}** moved channels`)
-    .addFields(
-      { name: 'From', value: `<#${fromChannel.id}>`, inline: true },
-      { name: 'To',   value: `<#${toChannel.id}>`,   inline: true },
-    )
-    .setTimestamp();
-}
-
-function serverMuteEmbed(member, muted, channel, modTag) {
-  return new EmbedBuilder()
-    .setColor(muted ? COLOURS.serverMute : COLOURS.serverUnmute)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(muted
-      ? `🔇 **${member.displayName}** was server-muted`
-      : `🔈 **${member.displayName}** was server-unmuted`)
-    .addFields(
-      { name: 'Channel', value: channel ? `<#${channel.id}>` : '—', inline: true },
-      { name: 'By',      value: modTag || 'Unknown',                 inline: true },
-    )
-    .setTimestamp();
-}
-
-function serverDeafenEmbed(member, deafened, channel, modTag) {
-  return new EmbedBuilder()
-    .setColor(deafened ? COLOURS.serverDeafen : COLOURS.serverUndeafen)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(deafened
-      ? `🔕 **${member.displayName}** was server-deafened`
-      : `🔔 **${member.displayName}** was server-undeafened`)
-    .addFields(
-      { name: 'Channel', value: channel ? `<#${channel.id}>` : '—', inline: true },
-      { name: 'By',      value: modTag || 'Unknown',                 inline: true },
-    )
-    .setTimestamp();
-}
-
-function streamEmbed(member, started, channel) {
-  return new EmbedBuilder()
-    .setColor(started ? COLOURS.streamStart : COLOURS.streamStop)
-    .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
-    .setDescription(started
-      ? `🖥️ **${member.displayName}** started streaming`
-      : `🖥️ **${member.displayName}** stopped streaming`)
-    .addFields({ name: 'Channel', value: channel ? `<#${channel.id}>` : '—', inline: true })
-    .setTimestamp();
-}
-
-// ── Audit log helper (to find who did a server mute/deafen) ──────────────────
-
-async function getModeratorTag(guild, actionType, targetId) {
+async function getModerator(guild, targetId, auditType) {
   try {
-    const logs = await guild.fetchAuditLogs({ type: actionType, limit: 3 });
-    const entry = logs.entries.find(e =>
-      e.target?.id === targetId &&
-      (Date.now() - e.createdTimestamp) < 5000
-    );
+    const logs  = await guild.fetchAuditLogs({ type: auditType, limit: 5 });
+    const entry = logs.entries.find(e => e.target?.id === targetId && (Date.now() - e.createdTimestamp) < 5000);
     return entry?.executor?.tag || null;
-  } catch {
-    return null;
+  } catch { return null; }
+}
+
+async function sendLog(guild, embed) {
+  const channelId = getLogChannel(guild.id, 'voice');
+  if (!channelId) return;
+  try {
+    const channel = await guild.channels.fetch(channelId);
+    if (channel?.isTextBased()) await channel.send({ embeds: [embed] });
+  } catch (err) {
+    log('ERROR', 'Failed to send voice log', { guild: guild.name, error: err.message });
   }
 }
-
-// ── Main event handler ────────────────────────────────────────────────────────
 
 module.exports = {
   name: Events.VoiceStateUpdate,
@@ -119,72 +69,104 @@ module.exports = {
 
   async execute(oldState, newState) {
     const member = newState.member || oldState.member;
-    if (!member || member.user.bot) return; // Ignore bots entirely
+    if (!member || member.user.bot) return;
 
-    const guild  = newState.guild;
-    const config = getGuildConfig(guild.id);
-    if (!config.logChannelId) return; // No log channel set for this guild
-
-    let logChannel;
-    try {
-      logChannel = await guild.channels.fetch(config.logChannelId);
-      if (!logChannel?.isTextBased()) return;
-    } catch {
-      return; // Channel deleted or no access
-    }
-
+    const guild      = newState.guild;
     const oldChannel = oldState.channel;
     const newChannel = newState.channel;
+    const key        = `${guild.id}_${member.user.id}`;
 
-    try {
-      // ── Join ──────────────────────────────────────────────────────────────
-      if (!oldChannel && newChannel) {
-        log('VOICE', `${member.user.tag} joined ${newChannel.name}`, { guild: guild.name });
-        await logChannel.send({ embeds: [joinEmbed(member, newChannel)] });
-        return;
-      }
+    // ── Join ──────────────────────────────────────────────────────────────────
+    if (!oldChannel && newChannel) {
+      joinTimes.set(key, Date.now());
 
-      // ── Leave ─────────────────────────────────────────────────────────────
-      if (oldChannel && !newChannel) {
-        log('VOICE', `${member.user.tag} left ${oldChannel.name}`, { guild: guild.name });
-        await logChannel.send({ embeds: [leaveEmbed(member, oldChannel)] });
-        return;
-      }
-
-      // ── Move ──────────────────────────────────────────────────────────────
-      if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
-        log('VOICE', `${member.user.tag} moved ${oldChannel.name} → ${newChannel.name}`, { guild: guild.name });
-        await logChannel.send({ embeds: [moveEmbed(member, oldChannel, newChannel)] });
-        return;
-      }
-
-      // ── Same channel — check for state changes ────────────────────────────
-
-      // Server mute / unmute (a mod action — always log these)
-      if (oldState.serverMute !== newState.serverMute) {
-        const modTag = await getModeratorTag(guild, AuditLogEvent.MemberUpdate, member.id);
-        await logChannel.send({ embeds: [serverMuteEmbed(member, newState.serverMute, newChannel, modTag)] });
-        return;
-      }
-
-      // Server deafen / undeafen (a mod action — always log these)
-      if (oldState.serverDeaf !== newState.serverDeaf) {
-        const modTag = await getModeratorTag(guild, AuditLogEvent.MemberUpdate, member.id);
-        await logChannel.send({ embeds: [serverDeafenEmbed(member, newState.serverDeaf, newChannel, modTag)] });
-        return;
-      }
-
-      // Stream start / stop (interesting to see who's sharing their screen)
-      if (oldState.streaming !== newState.streaming) {
-        await logChannel.send({ embeds: [streamEmbed(member, newState.streaming, newChannel)] });
-        return;
-      }
-
-      // Self-mute/unmute and self-deafen/undeafen are intentionally
-      // NOT logged — they fire constantly and would flood the channel.
-
-    } catch (err) {
-      log('ERROR', 'Failed to send voice log', { guild: guild.name, error: err.message });
+      await sendLog(guild, base(member, C.join, '📥  Member Joined Voice')
+        .addFields(
+          { name: 'Member',      value: `${member} — ${member.user.tag}`,         inline: false },
+          { name: 'Channel',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true },
+          { name: 'Members Now', value: `${newChannel.members.size}`,              inline: true },
+        ));
+      return;
     }
+
+    // ── Leave ─────────────────────────────────────────────────────────────────
+    if (oldChannel && !newChannel) {
+      const duration = joinTimes.has(key) ? formatDuration(Date.now() - joinTimes.get(key)) : null;
+      joinTimes.delete(key);
+      streamTimes.delete(key);
+
+      const embed = base(member, C.leave, '📤  Member Left Voice')
+        .addFields(
+          { name: 'Member',  value: `${member} — ${member.user.tag}`,                       inline: false },
+          { name: 'Channel', value: `<#${oldChannel.id}> **${oldChannel.name}**`,            inline: true },
+          { name: 'Was In',  value: duration || 'Unknown',                                   inline: true },
+        );
+
+      await sendLog(guild, embed);
+      return;
+    }
+
+    // ── Move ──────────────────────────────────────────────────────────────────
+    if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
+      const mod = await getModerator(guild, member.id, AuditLogEvent.MemberMove);
+
+      await sendLog(guild, base(member, C.move, mod ? '🔀  Member Moved by Moderator' : '🔀  Member Moved Channels')
+        .addFields(
+          { name: 'Member', value: `${member} — ${member.user.tag}`,                    inline: false },
+          { name: 'From',   value: `<#${oldChannel.id}> **${oldChannel.name}**`,         inline: true },
+          { name: 'To',     value: `<#${newChannel.id}> **${newChannel.name}**`,         inline: true },
+          ...(mod ? [{ name: 'Moved By', value: mod, inline: false }] : []),
+        ));
+      return;
+    }
+
+    // ── State changes in same channel ─────────────────────────────────────────
+
+    if (oldState.serverMute !== newState.serverMute) {
+      const mod = await getModerator(guild, member.id, AuditLogEvent.MemberUpdate);
+      await sendLog(guild, base(member, newState.serverMute ? C.serverMute : C.serverUnmute,
+        newState.serverMute ? '🔇  Member Server Muted' : '🔈  Member Server Unmuted')
+        .addFields(
+          { name: 'Member',    value: `${member} — ${member.user.tag}`,                              inline: false },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
+          { name: 'Action By', value: mod || 'Unknown',                                              inline: true },
+        ));
+      return;
+    }
+
+    if (oldState.serverDeaf !== newState.serverDeaf) {
+      const mod = await getModerator(guild, member.id, AuditLogEvent.MemberUpdate);
+      await sendLog(guild, base(member, newState.serverDeaf ? C.serverDeafen : C.serverUndeafen,
+        newState.serverDeaf ? '🔕  Member Server Deafened' : '🔔  Member Server Undeafened')
+        .addFields(
+          { name: 'Member',    value: `${member} — ${member.user.tag}`,                              inline: false },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
+          { name: 'Action By', value: mod || 'Unknown',                                              inline: true },
+        ));
+      return;
+    }
+
+    if (oldState.streaming !== newState.streaming) {
+      if (newState.streaming) {
+        streamTimes.set(key, Date.now());
+        await sendLog(guild, base(member, C.streamStart, '🖥️  Member Started Streaming')
+          .addFields(
+            { name: 'Member',  value: `${member} — ${member.user.tag}`,                              inline: false },
+            { name: 'Channel', value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
+          ));
+      } else {
+        const duration = streamTimes.has(key) ? formatDuration(Date.now() - streamTimes.get(key)) : null;
+        streamTimes.delete(key);
+        await sendLog(guild, base(member, C.streamStop, '🖥️  Member Stopped Streaming')
+          .addFields(
+            { name: 'Member',        value: `${member} — ${member.user.tag}`,                              inline: false },
+            { name: 'Channel',       value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
+            { name: 'Streamed For',  value: duration || 'Unknown',                                         inline: true },
+          ));
+      }
+      return;
+    }
+
+    // Self-mute / self-deafen intentionally not logged
   },
 };
