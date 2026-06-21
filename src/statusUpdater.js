@@ -4,13 +4,11 @@ const { log }            = require('./logger');
 const store              = require('./connectionStore');
 const { getGuildConfig } = require('./guildConfig');
 
-const PRESENCE_INTERVAL = 60 * 1000; // 1 minute
-
-// ── Presence ──────────────────────────────────────────────────────────────────
+const PRESENCE_INTERVAL = 60 * 1000;
 
 function buildPresence() {
   const entries = store.getAllEntries();
-  const activeEntries = entries.filter(([guildId]) => {
+  const active  = entries.filter(([guildId]) => {
     const conn = getVoiceConnection(guildId);
     return conn && [
       VoiceConnectionStatus.Ready,
@@ -19,28 +17,18 @@ function buildPresence() {
     ].includes(conn.state.status);
   });
 
-  if (activeEntries.length === 0) {
-    return { name: 'Sleeping', status: 'idle' };
+  if (active.length === 0) return { name: 'Idle — use /join', status: 'idle' };
+  if (active.length === 1) {
+    const [, meta] = active[0];
+    return { name: `🔊 ${meta.channelName} · ${store.formatUptime(meta.joinedAt)}`, status: 'online' };
   }
-
-  if (activeEntries.length === 1) {
-    const [guildId, meta] = activeEntries[0];
-    const uptime = store.formatUptime(meta.joinedAt);
-    return { name: `🔊 ${meta.channelName} · ${uptime}`, status: 'online' };
-  }
-
-  return { name: `🔊 ${activeEntries.length} channels`, status: 'online' };
+  return { name: `🔊 ${active.length} channels`, status: 'online' };
 }
 
 function startStatusUpdater(client) {
   const update = async () => {
     const { name, status } = buildPresence();
-    client.user.setPresence({
-      status,
-      activities: [{ name, type: ActivityType.Custom }],
-    });
-
-    // Refresh the panel embed every 60s so uptime stays live
+    client.user.setPresence({ status, activities: [{ name, type: ActivityType.Custom }] });
     await updatePanel(client);
   };
 
@@ -48,8 +36,6 @@ function startStatusUpdater(client) {
   setInterval(update, PRESENCE_INTERVAL);
   log('INFO', 'Presence updater started (60s interval)');
 }
-
-// ── Control Panel ─────────────────────────────────────────────────────────────
 
 function buildPanelEmbed(guildId) {
   const entry = store.getEntry(guildId);
@@ -60,16 +46,15 @@ function buildPanelEmbed(guildId) {
     VoiceConnectionStatus.Signalling,
     VoiceConnectionStatus.Connecting,
   ].includes(conn.state.status);
-  const isGhost = entry && !conn;
 
-  let statusLine, channelLine, uptimeLine, colour;
+  let colour, statusLine, channelLine, uptimeLine;
 
   if (isConnected && entry) {
     colour      = 0x57F287;
     statusLine  = '🟢 Connected';
     channelLine = `**${entry.channelName}**`;
     uptimeLine  = store.formatUptime(entry.joinedAt);
-  } else if (isGhost) {
+  } else if (entry && !conn) {
     colour      = 0xFEE75C;
     statusLine  = '👻 Ghost — use Force Leave then Join';
     channelLine = entry.channelName;
@@ -82,7 +67,7 @@ function buildPanelEmbed(guildId) {
   }
 
   return new EmbedBuilder()
-    .setTitle('🖤 24/7 POW Bot — Control Panel')
+    .setTitle('🤖 POW Bot — Control Panel')
     .setColor(colour)
     .addFields(
       { name: 'Status',  value: statusLine,  inline: true },
@@ -110,8 +95,14 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
       .setLabel('Force Leave')
-      .setEmoji('🔌')
+      .setEmoji('💀')
       .setStyle(ButtonStyle.Danger),
+
+    new ButtonBuilder()
+      .setCustomId('bot_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -123,12 +114,8 @@ async function updatePanel(client) {
     try {
       const channel = await guild.channels.fetch(config.panelChannelId);
       if (!channel?.isTextBased()) continue;
-
       const message = await channel.messages.fetch(config.panelMessageId);
-      await message.edit({
-        embeds:     [buildPanelEmbed(guild.id)],
-        components: [buildPanelButtons()],
-      });
+      await message.edit({ embeds: [buildPanelEmbed(guild.id)], components: [buildPanelButtons()] });
     } catch (err) {
       log('WARN', 'Could not update panel message', { guild: guild.name, error: err.message });
     }
