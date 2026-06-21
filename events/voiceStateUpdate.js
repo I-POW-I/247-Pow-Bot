@@ -1,17 +1,13 @@
 /**
  * Logs all voice activity to the guild's configured voice log channel.
- * Tracks join times per member so leave/stream-stop embeds show duration.
+ * Uses memberTracker for join/stream times so durations survive bot restarts.
  * Skips: self-mute, self-deafen, bots.
  */
 
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { log }           = require('../src/logger');
-const { getLogChannel } = require('../src/guildConfig');
-
-// Track when each member joined a channel / started streaming
-// Key: `${guildId}_${userId}`
-const joinTimes   = new Map();
-const streamTimes = new Map();
+const { log }                              = require('../src/logger');
+const { getLogChannel }                    = require('../src/guildConfig');
+const { joinTimes, streamTimes }           = require('../src/memberTracker');
 
 const C = {
   join:           0x57F287,
@@ -35,9 +31,9 @@ function base(member, colour, title) {
 }
 
 function formatDuration(ms) {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const s   = Math.floor(ms / 1000);
+  const h   = Math.floor(s / 3600);
+  const m   = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   if (h > 0) return `${h}h ${m}m ${sec}s`;
   if (m > 0) return `${m}m ${sec}s`;
@@ -47,7 +43,9 @@ function formatDuration(ms) {
 async function getModerator(guild, targetId, auditType) {
   try {
     const logs  = await guild.fetchAuditLogs({ type: auditType, limit: 5 });
-    const entry = logs.entries.find(e => e.target?.id === targetId && (Date.now() - e.createdTimestamp) < 5000);
+    const entry = logs.entries.find(e =>
+      e.target?.id === targetId && (Date.now() - e.createdTimestamp) < 5000
+    );
     return entry?.executor?.tag || null;
   } catch { return null; }
 }
@@ -82,27 +80,28 @@ module.exports = {
 
       await sendLog(guild, base(member, C.join, '📥  Member Joined Voice')
         .addFields(
-          { name: 'Member',      value: `${member} — ${member.user.tag}`,         inline: false },
-          { name: 'Channel',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true },
-          { name: 'Members Now', value: `${newChannel.members.size}`,              inline: true },
+          { name: 'Member',      value: `${member} — ${member.user.tag}`,             inline: false },
+          { name: 'Channel',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
+          { name: 'Members Now', value: `${newChannel.members.size}`,                 inline: true  },
         ));
       return;
     }
 
     // ── Leave ─────────────────────────────────────────────────────────────────
     if (oldChannel && !newChannel) {
-      const duration = joinTimes.has(key) ? formatDuration(Date.now() - joinTimes.get(key)) : null;
+      const duration = joinTimes.has(key)
+        ? formatDuration(Date.now() - joinTimes.get(key))
+        : null;
+
       joinTimes.delete(key);
       streamTimes.delete(key);
 
-      const embed = base(member, C.leave, '📤  Member Left Voice')
+      await sendLog(guild, base(member, C.leave, '📤  Member Left Voice')
         .addFields(
-          { name: 'Member',  value: `${member} — ${member.user.tag}`,                       inline: false },
-          { name: 'Channel', value: `<#${oldChannel.id}> **${oldChannel.name}**`,            inline: true },
-          { name: 'Was In',  value: duration || 'Unknown',                                   inline: true },
-        );
-
-      await sendLog(guild, embed);
+          { name: 'Member',  value: `${member} — ${member.user.tag}`,              inline: false },
+          { name: 'Channel', value: `<#${oldChannel.id}> **${oldChannel.name}**`,  inline: true  },
+          { name: 'Was In',  value: duration || 'Unknown',                          inline: true  },
+        ));
       return;
     }
 
@@ -112,24 +111,24 @@ module.exports = {
 
       await sendLog(guild, base(member, C.move, mod ? '🔀  Member Moved by Moderator' : '🔀  Member Moved Channels')
         .addFields(
-          { name: 'Member', value: `${member} — ${member.user.tag}`,                    inline: false },
-          { name: 'From',   value: `<#${oldChannel.id}> **${oldChannel.name}**`,         inline: true },
-          { name: 'To',     value: `<#${newChannel.id}> **${newChannel.name}**`,         inline: true },
+          { name: 'Member', value: `${member} — ${member.user.tag}`,             inline: false },
+          { name: 'From',   value: `<#${oldChannel.id}> **${oldChannel.name}**`, inline: true  },
+          { name: 'To',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
           ...(mod ? [{ name: 'Moved By', value: mod, inline: false }] : []),
         ));
       return;
     }
 
-    // ── State changes in same channel ─────────────────────────────────────────
+    // ── Same channel state changes ─────────────────────────────────────────────
 
     if (oldState.serverMute !== newState.serverMute) {
       const mod = await getModerator(guild, member.id, AuditLogEvent.MemberUpdate);
       await sendLog(guild, base(member, newState.serverMute ? C.serverMute : C.serverUnmute,
         newState.serverMute ? '🔇  Member Server Muted' : '🔈  Member Server Unmuted')
         .addFields(
-          { name: 'Member',    value: `${member} — ${member.user.tag}`,                              inline: false },
-          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
-          { name: 'Action By', value: mod || 'Unknown',                                              inline: true },
+          { name: 'Member',    value: `${member} — ${member.user.tag}`,                                inline: false },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+          { name: 'Action By', value: mod || 'Unknown',                                                inline: true  },
         ));
       return;
     }
@@ -139,9 +138,9 @@ module.exports = {
       await sendLog(guild, base(member, newState.serverDeaf ? C.serverDeafen : C.serverUndeafen,
         newState.serverDeaf ? '🔕  Member Server Deafened' : '🔔  Member Server Undeafened')
         .addFields(
-          { name: 'Member',    value: `${member} — ${member.user.tag}`,                              inline: false },
-          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
-          { name: 'Action By', value: mod || 'Unknown',                                              inline: true },
+          { name: 'Member',    value: `${member} — ${member.user.tag}`,                                inline: false },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+          { name: 'Action By', value: mod || 'Unknown',                                                inline: true  },
         ));
       return;
     }
@@ -151,17 +150,19 @@ module.exports = {
         streamTimes.set(key, Date.now());
         await sendLog(guild, base(member, C.streamStart, '🖥️  Member Started Streaming')
           .addFields(
-            { name: 'Member',  value: `${member} — ${member.user.tag}`,                              inline: false },
-            { name: 'Channel', value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
+            { name: 'Member',  value: `${member} — ${member.user.tag}`,                                inline: false },
+            { name: 'Channel', value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
           ));
       } else {
-        const duration = streamTimes.has(key) ? formatDuration(Date.now() - streamTimes.get(key)) : null;
+        const duration = streamTimes.has(key)
+          ? formatDuration(Date.now() - streamTimes.get(key))
+          : null;
         streamTimes.delete(key);
         await sendLog(guild, base(member, C.streamStop, '🖥️  Member Stopped Streaming')
           .addFields(
-            { name: 'Member',        value: `${member} — ${member.user.tag}`,                              inline: false },
-            { name: 'Channel',       value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true },
-            { name: 'Streamed For',  value: duration || 'Unknown',                                         inline: true },
+            { name: 'Member',       value: `${member} — ${member.user.tag}`,                                inline: false },
+            { name: 'Channel',      value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+            { name: 'Streamed For', value: duration || 'Unknown',                                            inline: true  },
           ));
       }
       return;
