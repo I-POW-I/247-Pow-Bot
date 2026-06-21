@@ -17,7 +17,7 @@ function buildPresence() {
     ].includes(conn.state.status);
   });
 
-  if (active.length === 0) return { name: 'Idle — use /join', status: 'idle' };
+  if (active.length === 0) return { name: 'Sleeping...', status: 'idle' };
   if (active.length === 1) {
     const [, meta] = active[0];
     return { name: `🔊 ${meta.channelName} · ${store.formatUptime(meta.joinedAt)}`, status: 'online' };
@@ -67,7 +67,7 @@ function buildPanelEmbed(guildId) {
   }
 
   return new EmbedBuilder()
-    .setTitle('🤖 POW Bot — Control Panel')
+    .setTitle('🖤24/7 POW Bot — Control Panel')
     .setColor(colour)
     .addFields(
       { name: 'Status',  value: statusLine,  inline: true },
@@ -95,7 +95,7 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
       .setLabel('Force Leave')
-      .setEmoji('💀')
+      .setEmoji('🔌')
       .setStyle(ButtonStyle.Danger),
 
     new ButtonBuilder()
