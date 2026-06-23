@@ -4,12 +4,12 @@ const { log } = require('../src/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('clearcommands')
-    .setDescription('Force clear and re-register all slash commands — fixes old/stuck commands showing')
+    .setDescription('Wipe all old/stuck slash commands and re-register the correct ones')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, client) {
     await interaction.reply({
-      content: '🔄 Clearing and re-registering all commands...',
+      content: '🔄 Clearing all commands (global + guild-specific)...',
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -17,22 +17,47 @@ module.exports = {
       const { REST, Routes } = require('discord.js');
       const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 
-      // Step 1: Wipe everything
+      // Clear global commands
       await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: [] });
-      log('INFO', 'All global commands cleared', { by: interaction.user.tag });
+      log('INFO', 'Global commands cleared', { by: interaction.user.tag });
 
-      // Step 2: Re-register current commands
+      // Clear guild-specific commands for every guild the bot is in
+      // (old bots sometimes registered commands per-guild — this catches those)
+      const guildResults = [];
+      for (const guild of client.guilds.cache.values()) {
+        try {
+          await rest.put(
+            Routes.applicationGuildCommands(process.env.CLIENT_ID, guild.id),
+            { body: [] }
+          );
+          guildResults.push(`✅ ${guild.name}`);
+        } catch {
+          guildResults.push(`⚠️ ${guild.name} (skipped)`);
+        }
+      }
+
+      // Re-register current commands globally
       const commandData = [...client.commands.values()].map(cmd => cmd.data.toJSON());
       await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commandData });
 
-      log('INFO', `Re-registered ${commandData.length} command(s)`, { by: interaction.user.tag });
+      log('INFO', `Re-registered ${commandData.length} global command(s)`, { by: interaction.user.tag });
+
+      const names = commandData.map(c => `\`/${c.name}\``).join(', ');
 
       await interaction.editReply({
-        content: `✅ Done — cleared all old commands and re-registered **${commandData.length}** current command(s).\n\nOld commands like \`/join\`, \`/leave\`, \`/stay\` should disappear within a few minutes.`,
+        content: [
+          `✅ **Done.** Here's what happened:`,
+          ``,
+          `**Global commands** — wiped and re-registered ${commandData.length} command(s): ${names}`,
+          `**Guild commands cleared:** ${guildResults.join(' · ')}`,
+          ``,
+          `Old commands like \`/join\`, \`/leave\`, \`/stay\` should disappear within a few minutes.`,
+          `If they still show after 10 minutes, restart your Discord app.`,
+        ].join('\n'),
       });
 
     } catch (err) {
-      log('ERROR', 'Failed to clear/re-register commands', { error: err.message });
+      log('ERROR', 'clearcommands failed', { error: err.message });
       await interaction.editReply({ content: `❌ Failed: ${err.message}` });
     }
   },
