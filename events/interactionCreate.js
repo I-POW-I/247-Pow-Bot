@@ -1,11 +1,15 @@
 const { Events, PermissionFlagsBits, MessageFlags, ActivityType } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
-const { log }                       = require('../src/logger');
-const store                         = require('../src/connectionStore');
-const { attachDisconnectHandler }   = require('../src/heartbeat');
-const { updatePanel, buildStatsEmbed, buildChannelSelectRow } = require('../src/statusUpdater');
+const { log }                     = require('../src/logger');
+const store                       = require('../src/connectionStore');
+const { attachDisconnectHandler } = require('../src/heartbeat');
+const {
+  updatePanel, buildStatsEmbed, buildMemberEmbed,
+  buildChannelSelectRow, buildUserSelectRow,
+} = require('../src/statusUpdater');
 const { setLastChannel, clearLastChannel, setStats } = require('../src/guildConfig');
 const { attachSilencePlayer, stopSilencePlayer }     = require('../src/audioPlayer');
+const { joinTimes }                                   = require('../src/memberTracker');
 
 const HEALTHY = [
   VoiceConnectionStatus.Ready,
@@ -13,7 +17,7 @@ const HEALTHY = [
   VoiceConnectionStatus.Connecting,
 ];
 
-// ── Shared join logic — used by both button and channel select ────────────────
+// ── Shared join logic ─────────────────────────────────────────────────────────
 async function joinChannel(targetChannel, guild, member, client, interaction) {
   const existingConn = getVoiceConnection(guild.id);
   if (existingConn) {
@@ -66,7 +70,7 @@ async function joinChannel(targetChannel, guild, member, client, interaction) {
 
   } catch {
     return interaction.reply({
-      content: '❌ Failed to join — check I have the **Connect** permission in that channel.',
+      content: '❌ Failed to join — check I have the **Connect** permission.',
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -82,7 +86,7 @@ module.exports = {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) {
-        log('WARN', `No handler found for /${interaction.commandName}`);
+        log('WARN', `No handler: /${interaction.commandName}`);
         return;
       }
       try {
@@ -99,19 +103,33 @@ module.exports = {
       return;
     }
 
-    // ── Channel select (join channel picker) ──────────────────────────────────
+    // ── Channel select (voice channel picker) ─────────────────────────────────
     if (interaction.isChannelSelectMenu() && interaction.customId === 'bot_join_channel') {
       const { guild, member } = interaction;
       const targetChannel = interaction.channels.first();
-
       if (!targetChannel?.isVoiceBased()) {
+        return interaction.reply({ content: '❌ That is not a voice channel.', flags: [MessageFlags.Ephemeral] });
+      }
+      return joinChannel(targetChannel, guild, member, client, interaction);
+    }
+
+    // ── User select (member lookup) ───────────────────────────────────────────
+    if (interaction.isUserSelectMenu() && interaction.customId === 'bot_lookup_user') {
+      const { guild } = interaction;
+      const user   = interaction.users.first();
+      const member = await guild.members.fetch(user.id).catch(() => null);
+
+      if (!member) {
         return interaction.reply({
-          content: '❌ That is not a voice channel.',
+          content: '❌ Could not find that member in this server.',
           flags: [MessageFlags.Ephemeral],
         });
       }
 
-      return joinChannel(targetChannel, guild, member, client, interaction);
+      return interaction.reply({
+        embeds: [buildMemberEmbed(member, guild, joinTimes)],
+        flags:  [MessageFlags.Ephemeral],
+      });
     }
 
     // ── Panel buttons ─────────────────────────────────────────────────────────
@@ -120,20 +138,36 @@ module.exports = {
     const { guild, member } = interaction;
     const isAdmin = member.permissions.has(PermissionFlagsBits.ManageGuild);
 
-    // ── Refresh & Stats — open to everyone ───────────────────────────────────
+    // ── Open to everyone ──────────────────────────────────────────────────────
     if (interaction.customId === 'bot_refresh') {
       await updatePanel(client);
       return interaction.reply({ content: '🔄 Panel refreshed.', flags: [MessageFlags.Ephemeral] });
     }
 
-    if (interaction.customId === 'bot_stats') {
+    // My Info — shows the clicking user's own profile
+    if (interaction.customId === 'bot_myinfo') {
       return interaction.reply({
-        embeds: [buildStatsEmbed(guild.id, client)],
+        embeds: [buildMemberEmbed(member, guild, joinTimes)],
         flags:  [MessageFlags.Ephemeral],
       });
     }
 
-    // ── All other buttons require Manage Server ───────────────────────────────
+    // Lookup — shows a user select dropdown (admin only)
+    if (interaction.customId === 'bot_lookup') {
+      if (!isAdmin) {
+        return interaction.reply({
+          content: '🚫 You need **Manage Server** permission to look up members.',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+      return interaction.reply({
+        content: 'Select a member to view their profile:',
+        components: [buildUserSelectRow()],
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+
+    // ── Admin only below this point ───────────────────────────────────────────
     if (!isAdmin) {
       return interaction.reply({
         content: '🚫 You need **Manage Server** permission to use this.',
@@ -144,15 +178,11 @@ module.exports = {
     // ── Join ──────────────────────────────────────────────────────────────────
     if (interaction.customId === 'bot_join') {
       const targetChannel = member.voice?.channel;
-
-      // If user is in a VC, join it directly
       if (targetChannel?.isVoiceBased()) {
         return joinChannel(targetChannel, guild, member, client, interaction);
       }
-
-      // Not in a VC — show channel picker dropdown
       return interaction.reply({
-        content: 'You\'re not in a voice channel. Pick one below:',
+        content: "You're not in a voice channel. Pick one:",
         components: [buildChannelSelectRow()],
         flags: [MessageFlags.Ephemeral],
       });
@@ -164,10 +194,7 @@ module.exports = {
       const entry = store.getEntry(guild.id);
 
       if (!conn && !entry) {
-        return interaction.reply({
-          content: "❌ I'm not connected to any voice channel.",
-          flags: [MessageFlags.Ephemeral],
-        });
+        return interaction.reply({ content: "❌ I'm not connected.", flags: [MessageFlags.Ephemeral] });
       }
 
       if (conn) { try { conn.destroy(); } catch (_) {} }
@@ -175,10 +202,7 @@ module.exports = {
       store.clearConnection(guild.id);
       clearLastChannel(guild.id);
 
-      client.user.setPresence({
-        status: 'idle',
-        activities: [{ name: 'Sleeping...', type: ActivityType.Custom }],
-      });
+      client.user.setPresence({ status: 'idle', activities: [{ name: 'Sleeping...', type: ActivityType.Custom }] });
 
       log('VOICE', 'Left via panel', { guild: guild.name, by: member.user.tag });
       await updatePanel(client);
@@ -199,10 +223,7 @@ module.exports = {
       store.clearConnection(guild.id);
       clearLastChannel(guild.id);
 
-      client.user.setPresence({
-        status: 'idle',
-        activities: [{ name: 'Sleeping...', type: ActivityType.Custom }],
-      });
+      client.user.setPresence({ status: 'idle', activities: [{ name: 'Sleeping...', type: ActivityType.Custom }] });
 
       log('VOICE', 'Force leave via panel', { guild: guild.name, by: member.user.tag });
       await updatePanel(client);
