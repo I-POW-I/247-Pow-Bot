@@ -1,14 +1,20 @@
 /**
- * Logs all voice activity to the guild's configured voice log channel.
- * Detects forced disconnects and moderator moves via audit log.
- * Tracks join/stream times via memberTracker for duration display.
- * Skips: self-mute, self-deafen, bots.
+ * Logs all voice activity and writes VC sessions to the SQLite database.
+ *
+ * DB writes:
+ *   join  → startSession()
+ *   leave → endSession()
+ *
+ * Forced disconnect and moderator moves detected via audit log.
+ * Self-mute / self-deafen NOT logged (too noisy).
+ * Bots ignored entirely.
  */
 
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { log }                    = require('../src/logger');
-const { getLogChannel }          = require('../src/guildConfig');
-const { joinTimes, streamTimes } = require('../src/memberTracker');
+const { log }                        = require('../src/logger');
+const { getLogChannel }              = require('../src/guildConfig');
+const { joinTimes, streamTimes }     = require('../src/memberTracker');
+const { startSession, endSession }   = require('../src/database');
 
 const C = {
   join:           0x57F287,
@@ -43,10 +49,6 @@ function formatDuration(ms) {
   return `${sec}s`;
 }
 
-/**
- * Fetch the executor of a recent audit log action for a target user.
- * Returns null if nothing found within the time window.
- */
 async function getAuditExecutor(guild, targetId, auditType, windowMs = 4000) {
   try {
     const logs  = await guild.fetchAuditLogs({ type: auditType, limit: 5 });
@@ -84,6 +86,7 @@ module.exports = {
     // ── Join ──────────────────────────────────────────────────────────────────
     if (!oldChannel && newChannel) {
       joinTimes.set(key, Date.now());
+      startSession(member.user.id, guild.id, newChannel.id, newChannel.name);
 
       await sendLog(guild, base(member, C.join, '📥  Member Joined Voice')
         .addFields(
@@ -102,12 +105,11 @@ module.exports = {
 
       joinTimes.delete(key);
       streamTimes.delete(key);
+      endSession(member.user.id, guild.id); // Write completed session to DB
 
-      // Check if a mod forcibly disconnected this member
       const disconnectedBy = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberDisconnect);
 
       if (disconnectedBy) {
-        // Forced disconnect by a moderator
         await sendLog(guild, base(member, C.forceLeave, '🚫  Member Disconnected by Moderator')
           .addFields(
             { name: 'Member',          value: `${member} — ${member.user.tag}`,              inline: false },
@@ -116,7 +118,6 @@ module.exports = {
             { name: 'Disconnected By', value: disconnectedBy,                                 inline: false },
           ));
       } else {
-        // Voluntary leave
         await sendLog(guild, base(member, C.leave, '📤  Member Left Voice')
           .addFields(
             { name: 'Member',  value: `${member} — ${member.user.tag}`,             inline: false },
@@ -129,7 +130,12 @@ module.exports = {
 
     // ── Move between channels ─────────────────────────────────────────────────
     if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
-      // Check if a mod moved them (MemberMove audit event)
+      // End old session, start new one in the destination channel
+      endSession(member.user.id, guild.id);
+      startSession(member.user.id, guild.id, newChannel.id, newChannel.name);
+      // Update in-memory join time (reset to now for this new channel segment)
+      joinTimes.set(key, Date.now());
+
       const movedBy = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberMove);
 
       await sendLog(guild, base(member, movedBy ? C.modMove : C.move,
@@ -143,7 +149,7 @@ module.exports = {
       return;
     }
 
-    // ── State changes in same channel ─────────────────────────────────────────
+    // ── Same channel state changes ─────────────────────────────────────────────
 
     if (oldState.serverMute !== newState.serverMute) {
       const mod = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberUpdate);
@@ -193,7 +199,5 @@ module.exports = {
       }
       return;
     }
-
-    // Self-mute / self-deafen intentionally not logged
   },
 };
