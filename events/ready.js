@@ -27,7 +27,7 @@ module.exports = {
       log('ERROR', 'Failed to register slash commands', { error: err.message });
     }
 
-    // ── Auto-rejoin last known channels ──────────────────────────────────────
+    // ── Auto-rejoin + restore stats ───────────────────────────────────────────
     log('INFO', 'Checking for channels to auto-rejoin...');
     let rejoined = 0;
 
@@ -37,8 +37,8 @@ module.exports = {
 
       try {
         const channel = await guild.channels.fetch(config.lastChannelId);
-        if (!channel || !channel.isVoiceBased()) {
-          log('WARN', 'Saved channel no longer exists — skipping', { guild: guild.name });
+        if (!channel?.isVoiceBased()) {
+          log('WARN', 'Saved channel gone — skipping', { guild: guild.name });
           continue;
         }
 
@@ -53,24 +53,16 @@ module.exports = {
         attachDisconnectHandler(connection, guild.name, channel.name);
         attachSilencePlayer(connection, guild.id);
 
-        // Restore persisted stats so uptime survives non-deploy restarts
-        const saved = getStats(guild.id);
+        // Restore persisted stats (uptime and reconnect count survive regular restarts)
+        const saved          = getStats(guild.id);
         const joinedAt       = saved.joinedAt       || new Date();
         const reconnectCount = saved.reconnectCount  || 0;
 
-        store.setConnection(guild.id, {
-          channelId:   channel.id,
-          channelName: channel.name,
-          guildName:   guild.name,
-          joinedAt,
-          reconnectCount,
-        });
-
-        // Re-save stats so they stay current after this restart
+        store.setConnection(guild.id, { channelId: channel.id, channelName: channel.name, guildName: guild.name, joinedAt, reconnectCount });
         setStats(guild.id, { joinedAt, reconnectCount });
 
-        // Seed join times for members already in the channel
-        // so duration tracking works rather than showing Unknown
+        // Seed member join times from DB open sessions — restores accurate durations
+        await guild.members.fetch(); // Ensure member cache is populated
         initGuild(guild);
 
         log('VOICE', 'Auto-rejoined on startup', {
@@ -81,13 +73,12 @@ module.exports = {
         rejoined++;
 
       } catch (err) {
-        log('ERROR', 'Auto-rejoin on startup failed', { guild: guild.name, error: err.message });
+        log('ERROR', 'Auto-rejoin failed', { guild: guild.name, error: err.message });
       }
     }
 
     log('INFO', rejoined > 0 ? `Auto-rejoined ${rejoined} channel(s)` : 'No channels to auto-rejoin');
 
-    // ── Start background tasks ────────────────────────────────────────────────
     startHeartbeat(client);
     startStatusUpdater(client);
     await updatePanel(client);
