@@ -1,20 +1,21 @@
 /**
- * Logs all voice activity and writes VC sessions to the SQLite database.
+ * Logs all voice activity to the guild's configured voice log channel.
+ * Writes VC sessions to SQLite on join/leave.
  *
- * DB writes:
- *   join  → startSession()
- *   leave → endSession()
+ * Audit log notes:
+ *   MemberUpdate  → target IS the specific user  (mute/deafen)
+ *   MemberMove    → target is the GUILD, not user (mod moving someone)
+ *   MemberDisconnect → target is the GUILD        (mod force-disconnecting)
  *
- * Forced disconnect and moderator moves detected via audit log.
- * Self-mute / self-deafen NOT logged (too noisy).
- * Bots ignored entirely.
+ * Bot MUST have "View Audit Log" permission in the guild or all mod
+ * detection silently returns null.
  */
 
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { log }                        = require('../src/logger');
-const { getLogChannel }              = require('../src/guildConfig');
-const { joinTimes, streamTimes }     = require('../src/memberTracker');
-const { startSession, endSession }   = require('../src/database');
+const { log }                      = require('../src/logger');
+const { getLogChannel }            = require('../src/guildConfig');
+const { joinTimes, streamTimes }   = require('../src/memberTracker');
+const { startSession, endSession } = require('../src/database');
 
 const C = {
   join:           0x57F287,
@@ -49,11 +50,47 @@ function formatDuration(ms) {
   return `${sec}s`;
 }
 
-async function getAuditExecutor(guild, targetId, auditType, windowMs = 4000) {
+/**
+ * Get the mod who performed a MEMBER_UPDATE action (mute/deafen).
+ * These entries have the specific user as the target.
+ */
+async function getMuteDeafMod(guild, userId, windowMs = 4000) {
   try {
-    const logs  = await guild.fetchAuditLogs({ type: auditType, limit: 5 });
+    const logs  = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberUpdate, limit: 5 });
     const entry = logs.entries.find(e =>
-      e.target?.id === targetId && (Date.now() - e.createdTimestamp) < windowMs
+      e.target?.id === userId && (Date.now() - e.createdTimestamp) < windowMs
+    );
+    return entry?.executor?.tag || null;
+  } catch { return null; }
+}
+
+/**
+ * Get the mod who performed a MEMBER_MOVE action.
+ * MemberMove entries target the GUILD, not the moved user.
+ * We match by destination channel + recent timestamp for accuracy.
+ */
+async function getMoveMod(guild, destChannelId, windowMs = 5000) {
+  try {
+    const logs  = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberMove, limit: 5 });
+    const entry = logs.entries.find(e =>
+      (Date.now() - e.createdTimestamp) < windowMs &&
+      e.extra?.channel?.id === destChannelId
+    );
+    return entry?.executor?.tag || null;
+  } catch { return null; }
+}
+
+/**
+ * Get the mod who performed a MEMBER_DISCONNECT action.
+ * MemberDisconnect entries also target the GUILD, not the disconnected user.
+ * We just check recency — if there's a disconnect audit within a few seconds
+ * of the leave event, it was a forced disconnect.
+ */
+async function getDisconnectMod(guild, windowMs = 5000) {
+  try {
+    const logs  = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberDisconnect, limit: 3 });
+    const entry = logs.entries.find(e =>
+      (Date.now() - e.createdTimestamp) < windowMs
     );
     return entry?.executor?.tag || null;
   } catch { return null; }
@@ -105,9 +142,10 @@ module.exports = {
 
       joinTimes.delete(key);
       streamTimes.delete(key);
-      endSession(member.user.id, guild.id); // Write completed session to DB
+      endSession(member.user.id, guild.id);
 
-      const disconnectedBy = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberDisconnect);
+      // Check if a mod force-disconnected them
+      const disconnectedBy = await getDisconnectMod(guild);
 
       if (disconnectedBy) {
         await sendLog(guild, base(member, C.forceLeave, '🚫  Member Disconnected by Moderator')
@@ -130,21 +168,25 @@ module.exports = {
 
     // ── Move between channels ─────────────────────────────────────────────────
     if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
-      // End old session, start new one in the destination channel
+      // Close old session, start new one in destination channel
       endSession(member.user.id, guild.id);
       startSession(member.user.id, guild.id, newChannel.id, newChannel.name);
-      // Update in-memory join time (reset to now for this new channel segment)
       joinTimes.set(key, Date.now());
 
-      const movedBy = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberMove);
+      // Check destination channel — if a recent MemberMove audit matches, it was a mod
+      const movedBy = await getMoveMod(guild, newChannel.id);
 
-      await sendLog(guild, base(member, movedBy ? C.modMove : C.move,
+      await sendLog(guild, base(member,
+        movedBy ? C.modMove : C.move,
         movedBy ? '🔀  Member Moved by Moderator' : '🔀  Member Changed Channel')
         .addFields(
-          { name: 'Member', value: `${member} — ${member.user.tag}`,             inline: false },
-          { name: 'From',   value: `<#${oldChannel.id}> **${oldChannel.name}**`, inline: true  },
-          { name: 'To',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
-          ...(movedBy ? [{ name: 'Moved By', value: movedBy, inline: false }] : []),
+          { name: 'Member',  value: `${member} — ${member.user.tag}`,             inline: false },
+          { name: 'From',    value: `<#${oldChannel.id}> **${oldChannel.name}**`, inline: true  },
+          { name: 'To',      value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
+          ...(movedBy
+            ? [{ name: 'Moved By', value: movedBy, inline: false }]
+            : [{ name: 'Self Move', value: 'Member moved themselves', inline: false }]
+          ),
         ));
       return;
     }
@@ -152,7 +194,7 @@ module.exports = {
     // ── Same channel state changes ─────────────────────────────────────────────
 
     if (oldState.serverMute !== newState.serverMute) {
-      const mod = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberUpdate);
+      const mod = await getMuteDeafMod(guild, member.id);
       await sendLog(guild, base(member,
         newState.serverMute ? C.serverMute : C.serverUnmute,
         newState.serverMute ? '🔇  Member Server Muted' : '🔈  Member Server Unmuted')
@@ -165,7 +207,7 @@ module.exports = {
     }
 
     if (oldState.serverDeaf !== newState.serverDeaf) {
-      const mod = await getAuditExecutor(guild, member.id, AuditLogEvent.MemberUpdate);
+      const mod = await getMuteDeafMod(guild, member.id);
       await sendLog(guild, base(member,
         newState.serverDeaf ? C.serverDeafen : C.serverUndeafen,
         newState.serverDeaf ? '🔕  Member Server Deafened' : '🔔  Member Server Undeafened')
