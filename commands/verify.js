@@ -57,8 +57,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(desc)
-        .setColor(0x57F287)
-        .setFooter({ text: guild.name });
+        .setColor(0x57F287);
 
       const button = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
