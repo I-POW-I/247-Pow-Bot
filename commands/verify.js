@@ -43,7 +43,7 @@ module.exports = {
       const role  = interaction.options.getRole('role');
       const title = interaction.options.getString('title') || '✅  Verify';
       const desc  = interaction.options.getString('description') ||
-        'Click the button below to verify and gain access to the server.';
+        'Click the button below.';
 
       // Check bot can assign this role
       const botMember = await guild.members.fetchMe();
