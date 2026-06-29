@@ -4,10 +4,11 @@
  * Shape:
  * {
  *   [guildId]: {
- *     logChannels:    { voice, messages, members },
+ *     logChannels:    { voice, messages },
  *     panelChannelId, panelMessageId,
  *     lastChannelId,
- *     stats:          { joinedAt, reconnectCount }   ← persisted across restarts
+ *     stats:          { joinedAt, reconnectCount },
+ *     verifyRoleId,   verifyChannelId,  verifyMessageId,
  *   }
  * }
  */
@@ -64,11 +65,6 @@ function clearLastChannel(guildId) {
   }
 }
 
-/**
- * Persist uptime stats so they survive restarts.
- * @param {string} guildId
- * @param {{ joinedAt: Date, reconnectCount: number }} stats
- */
 function setStats(guildId, { joinedAt, reconnectCount }) {
   const all = readAll();
   if (!all[guildId]) all[guildId] = {};
@@ -79,11 +75,6 @@ function setStats(guildId, { joinedAt, reconnectCount }) {
   writeAll(all);
 }
 
-/**
- * Get persisted stats for a guild.
- * @param {string} guildId
- * @returns {{ joinedAt: Date|null, reconnectCount: number }}
- */
 function getStats(guildId) {
   const raw = getGuildConfig(guildId).stats;
   if (!raw) return { joinedAt: null, reconnectCount: 0 };
@@ -93,9 +84,15 @@ function getStats(guildId) {
   };
 }
 
+/** Get the verify role ID configured for this guild. */
+function getVerifyRoleId(guildId) {
+  return getGuildConfig(guildId).verifyRoleId || null;
+}
+
 module.exports = {
-  getGuildConfig, setGuildConfig,
-  getLogChannel,  setLogChannel,
-  setLastChannel, clearLastChannel,
-  setStats,       getStats,
+  getGuildConfig,  setGuildConfig,
+  getLogChannel,   setLogChannel,
+  setLastChannel,  clearLastChannel,
+  setStats,        getStats,
+  getVerifyRoleId,
 };
