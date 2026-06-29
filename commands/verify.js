@@ -58,8 +58,7 @@ module.exports = {
         .setTitle(title)
         .setDescription(desc)
         .setColor(0x57F287)
-        .setFooter({ text: guild.name })
-        .setTimestamp();
+        .setFooter({ text: guild.name });
 
       const button = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
