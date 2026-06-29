@@ -7,7 +7,7 @@ const {
   updatePanel, buildStatsEmbed, buildMemberEmbed,
   buildChannelSelectRow, buildUserSelectRow,
 } = require('../src/statusUpdater');
-const { setLastChannel, clearLastChannel, setStats } = require('../src/guildConfig');
+const { setLastChannel, clearLastChannel, setStats, getVerifyRoleId } = require('../src/guildConfig');
 const { attachSilencePlayer, stopSilencePlayer }     = require('../src/audioPlayer');
 const { startSession }                                = require('../src/database');
 
@@ -214,6 +214,49 @@ module.exports = {
           : '🔴 Force disconnected. All state cleared.',
         flags: [MessageFlags.Ephemeral],
       });
+    }
+
+    // ── Verify button ─────────────────────────────────────────────────────────
+    if (interaction.customId === 'bot_verify') {
+      const roleId = getVerifyRoleId(guild.id);
+
+      if (!roleId) {
+        return interaction.reply({
+          content: '❌ Verification is not set up in this server. An admin needs to run `/verify setup` first.',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+
+      const role = guild.roles.cache.get(roleId);
+      if (!role) {
+        return interaction.reply({
+          content: '❌ The verify role no longer exists. Please contact an admin.',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+
+      // Already verified
+      if (member.roles.cache.has(roleId)) {
+        return interaction.reply({
+          content: `✅ You are already verified.`,
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+
+      try {
+        await member.roles.add(role, 'Verified via verification button');
+        log('INFO', 'Member verified', { guild: guild.name, user: member.user.tag, role: role.name });
+        return interaction.reply({
+          content: `✅ You have been verified and given the **${role.name}** role.`,
+          flags: [MessageFlags.Ephemeral],
+        });
+      } catch (err) {
+        log('ERROR', 'Failed to assign verify role', { guild: guild.name, error: err.message });
+        return interaction.reply({
+          content: '❌ Failed to assign your role — make sure my role is above the verify role in Server Settings → Roles.',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
     }
   },
 };
