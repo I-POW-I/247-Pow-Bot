@@ -41,7 +41,7 @@ module.exports = {
 
     if (sub === 'setup') {
       const role  = interaction.options.getRole('role');
-      const title = interaction.options.getString('title') || '✅  Verify';
+      const title = interaction.options.getString('title') || 'Get Verified';
       const desc  = interaction.options.getString('description') ||
         'Click the button below.';
 
