@@ -82,7 +82,7 @@ function buildPanelEmbed(guildId, guild = null) {
   let colour, statusLine, channelLine, vcUptime, processUp, membersInVc;
 
   if (connected && entry) {
-    colour      = 0x57F287;
+    colour      = 0xed4245;
     statusLine  = '🟢 Connected';
     channelLine = `**${entry.channelName}**`;
     vcUptime    = store.formatUptime(entry.joinedAt);
@@ -142,7 +142,7 @@ function buildStatsEmbed(guildId, client) {
   const statusLabel = connected ? '🟢 Connected' : '🔴 Not connected';
 
   const embed = new EmbedBuilder()
-    .setTitle('🖤 POW Bot — Status')
+    .setTitle('🖤 24/7 POW Bot — Status')
     .setColor(connected ? 0x57F287 : 0xED4245)
     .setTimestamp();
 
@@ -160,8 +160,8 @@ function buildStatsEmbed(guildId, client) {
       { name: 'Members in VC',  value: `${inVc}`,                                                          inline: true  },
       { name: 'Memory',         value: `${memMB} MB`,                                                      inline: true  },
       {
-        name:  'Reconnects (this session)',
-        value: `${entry.reconnectCount}\n*Resets on GitHub redeploy*`,
+        name:  'Reconnects',
+        value: `${entry.reconnectCount}`,
         inline: true,
       },
       { name: 'Active VCs',    value: `${totalActive} server(s)`,                                          inline: true  },
