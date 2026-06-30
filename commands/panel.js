@@ -36,7 +36,7 @@ module.exports = {
     // Post the new panel
     const message = await channel.send({
       embeds:     [buildPanelEmbed(guild.id)],
-      components: [buildPanelButtons()],
+      components: buildPanelButtons(),
     });
 
     setGuildConfig(guild.id, {
