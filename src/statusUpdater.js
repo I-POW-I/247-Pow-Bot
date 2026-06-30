@@ -10,7 +10,7 @@ const { getGuildConfig, getStats, getLogChannel } = require('./guildConfig');
 const { getUserStats, getServerTotals, formatMs }  = require('./database');
 const { joinTimes, streamTimes }           = require('./memberTracker');
 
-const PRESENCE_INTERVAL = 60 * 1000;
+const PRESENCE_INTERVAL = 1 * 1000;
 
 const HEALTHY = [
   VoiceConnectionStatus.Ready,
@@ -64,7 +64,7 @@ function startStatusUpdater(client) {
   };
   update();
   setInterval(update, PRESENCE_INTERVAL);
-  log('INFO', 'Presence updater started (60s interval)');
+  log('INFO', 'Presence updater started (1s interval)');
 }
 
 // ── Panel embed ───────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ function buildPanelEmbed(guildId, guild = null) {
   }
 
   return new EmbedBuilder()
-    .setTitle('🖤24/7 POW Bot — Control Panel')
+    .setTitle('🖤 24/7 POW Bot')
     .setColor(colour)
     .addFields(
       { name: 'Status',      value: statusLine,  inline: true },
@@ -323,12 +323,6 @@ function buildPanelButtons() {
       .setLabel('Force Leave')
       .setEmoji('🔌')
       .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId('bot_refresh')
-      .setLabel('Refresh')
-      .setEmoji('🔄')
-      .setStyle(ButtonStyle.Secondary),
   );
 
   const row2 = new ActionRowBuilder().addComponents(
@@ -342,6 +336,12 @@ function buildPanelButtons() {
       .setCustomId('bot_lookup')
       .setLabel('Lookup User')
       .setEmoji('🔍')
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId('bot_refresh')
+      .setLabel('Refresh')
+      .setEmoji('🔄')
       .setStyle(ButtonStyle.Secondary),
   );
 
