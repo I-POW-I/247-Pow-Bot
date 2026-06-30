@@ -10,7 +10,7 @@ const { getGuildConfig, getStats, getLogChannel } = require('./guildConfig');
 const { getUserStats, getServerTotals, formatMs }  = require('./database');
 const { joinTimes, streamTimes }           = require('./memberTracker');
 
-const PRESENCE_INTERVAL = 1 * 1000;
+const PRESENCE_INTERVAL = 60 * 1000;
 
 const HEALTHY = [
   VoiceConnectionStatus.Ready,
@@ -64,7 +64,7 @@ function startStatusUpdater(client) {
   };
   update();
   setInterval(update, PRESENCE_INTERVAL);
-  log('INFO', 'Presence updater started (1s interval)');
+  log('INFO', 'Presence updater started (60s interval)');
 }
 
 // ── Panel embed ───────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ function buildPanelEmbed(guildId, guild = null) {
   let colour, statusLine, channelLine, vcUptime, processUp, membersInVc;
 
   if (connected && entry) {
-    colour      = 0xed4245;
+    colour      = 0x57F287;
     statusLine  = '🟢 Connected';
     channelLine = `**${entry.channelName}**`;
     vcUptime    = store.formatUptime(entry.joinedAt);
