@@ -41,9 +41,8 @@ module.exports = {
 
     if (sub === 'setup') {
       const role  = interaction.options.getRole('role');
-      const title = interaction.options.getString('title') || 'Get Verified';
-      const desc  = interaction.options.getString('description') ||
-        'Click the button below.';
+      const title = interaction.options.getString('title') || 'Click it... I know you want too.';
+      const desc  = interaction.options.getString('description');
 
       // Check bot can assign this role
       const botMember = await guild.members.fetchMe();
@@ -57,7 +56,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(desc)
-        .setColor(0x57F287);
+        .setColor(0xed4245);
 
       const button = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
