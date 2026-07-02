@@ -128,7 +128,7 @@ module.exports = {
       await sendLog(guild, base(member, C.join, '📥  Member Joined Voice')
         .addFields(
           { name: 'Member',      value: `${member} — ${member.user.tag}`,             inline: false },
-          { name: 'Channel',     value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
+          { name: 'Channel',     value: `<#${newChannel.id}>`, inline: true  },
           { name: 'Members Now', value: `${newChannel.members.size}`,                 inline: true  },
         ));
       return;
@@ -151,7 +151,7 @@ module.exports = {
         await sendLog(guild, base(member, C.forceLeave, '🚫  Member Disconnected by Moderator')
           .addFields(
             { name: 'Member',          value: `${member} — ${member.user.tag}`,              inline: false },
-            { name: 'Channel',         value: `<#${oldChannel.id}> **${oldChannel.name}**`,  inline: true  },
+            { name: 'Channel',         value: `<#${oldChannel.id}>`,  inline: true  },
             { name: 'Was In',          value: duration || 'Unknown',                          inline: true  },
             { name: 'Disconnected By', value: disconnectedBy,                                 inline: false },
           ));
@@ -159,7 +159,7 @@ module.exports = {
         await sendLog(guild, base(member, C.leave, '📤  Member Left Voice')
           .addFields(
             { name: 'Member',  value: `${member} — ${member.user.tag}`,             inline: false },
-            { name: 'Channel', value: `<#${oldChannel.id}> **${oldChannel.name}**`, inline: true  },
+            { name: 'Channel', value: `<#${oldChannel.id}>`, inline: true  },
             { name: 'Was In',  value: duration || 'Unknown',                         inline: true  },
           ));
       }
@@ -181,8 +181,8 @@ module.exports = {
         movedBy ? '🔀  Member Moved by Moderator' : '🔀  Member Changed Channel')
         .addFields(
           { name: 'Member',  value: `${member} — ${member.user.tag}`,             inline: false },
-          { name: 'From',    value: `<#${oldChannel.id}> **${oldChannel.name}**`, inline: true  },
-          { name: 'To',      value: `<#${newChannel.id}> **${newChannel.name}**`, inline: true  },
+          { name: 'From',    value: `<#${oldChannel.id}>`, inline: true  },
+          { name: 'To',      value: `<#${newChannel.id}>`, inline: true  },
           ...(movedBy
             ? [{ name: 'Moved By', value: movedBy, inline: false }]
             : [{ name: 'Self Move', value: 'Member moved themselves', inline: false }]
@@ -200,7 +200,7 @@ module.exports = {
         newState.serverMute ? '🔇  Member Server Muted' : '🔈  Member Server Unmuted')
         .addFields(
           { name: 'Member',    value: `${member} — ${member.user.tag}`,                                inline: false },
-          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}>` : '—', inline: true  },
           { name: 'Action By', value: mod || 'Unknown',                                                inline: true  },
         ));
       return;
@@ -213,7 +213,7 @@ module.exports = {
         newState.serverDeaf ? '🔕  Member Server Deafened' : '🔔  Member Server Undeafened')
         .addFields(
           { name: 'Member',    value: `${member} — ${member.user.tag}`,                                inline: false },
-          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+          { name: 'Channel',   value: newChannel ? `<#${newChannel.id}>` : '—', inline: true  },
           { name: 'Action By', value: mod || 'Unknown',                                                inline: true  },
         ));
       return;
@@ -225,7 +225,7 @@ module.exports = {
         await sendLog(guild, base(member, C.streamStart, '🖥️  Member Started Streaming')
           .addFields(
             { name: 'Member',  value: `${member} — ${member.user.tag}`,                                inline: false },
-            { name: 'Channel', value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+            { name: 'Channel', value: newChannel ? `<#${newChannel.id}>` : '—', inline: true  },
           ));
       } else {
         const duration = streamTimes.has(key)
@@ -235,7 +235,7 @@ module.exports = {
         await sendLog(guild, base(member, C.streamStop, '🖥️  Member Stopped Streaming')
           .addFields(
             { name: 'Member',       value: `${member} — ${member.user.tag}`,                                inline: false },
-            { name: 'Channel',      value: newChannel ? `<#${newChannel.id}> **${newChannel.name}**` : '—', inline: true  },
+            { name: 'Channel',      value: newChannel ? `<#${newChannel.id}>` : '—', inline: true  },
             { name: 'Streamed For', value: duration || 'Unknown',                                            inline: true  },
           ));
       }
