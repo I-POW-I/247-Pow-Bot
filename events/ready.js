@@ -8,6 +8,7 @@ const store                                        = require('../src/connectionS
 const { attachSilencePlayer }                      = require('../src/audioPlayer');
 const { initGuild }                                = require('../src/memberTracker');
 const { init: initDatabase }                       = require('../src/database');
+const { startStreamerPoller }                      = require('../src/streamerPoller');
 
 module.exports = {
   name: Events.ClientReady,
@@ -17,11 +18,10 @@ module.exports = {
     log('INFO', `Logged in as ${client.user.tag}`);
     log('INFO', `Serving ${client.guilds.cache.size} guild(s)`);
 
-    // ── Initialise SQLite database ────────────────────────────────────────────
-    // Must run before anything that uses the DB (memberTracker, voiceStateUpdate)
+    // ── Database ──────────────────────────────────────────────────────────────
     await initDatabase();
 
-    // ── Register slash commands ───────────────────────────────────────────────
+    // ── Slash commands ────────────────────────────────────────────────────────
     try {
       const { REST, Routes } = require('discord.js');
       const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
@@ -32,7 +32,7 @@ module.exports = {
       log('ERROR', 'Failed to register slash commands', { error: err.message });
     }
 
-    // ── Auto-rejoin last known channels ──────────────────────────────────────
+    // ── Auto-rejoin ───────────────────────────────────────────────────────────
     log('INFO', 'Checking for channels to auto-rejoin...');
     let rejoined = 0;
 
@@ -58,7 +58,6 @@ module.exports = {
         attachDisconnectHandler(connection, guild.name, channel.name);
         attachSilencePlayer(connection, guild.id);
 
-        // Restore persisted stats so uptime survives regular restarts
         const saved          = getStats(guild.id);
         const joinedAt       = saved.joinedAt      || new Date();
         const reconnectCount = saved.reconnectCount || 0;
@@ -70,10 +69,8 @@ module.exports = {
           joinedAt,
           reconnectCount,
         });
-
         setStats(guild.id, { joinedAt, reconnectCount });
 
-        // Fetch all guild members into cache before seeding join times
         await guild.members.fetch();
         initGuild(guild);
 
@@ -83,7 +80,6 @@ module.exports = {
           uptime:  store.formatUptime(joinedAt),
         });
         rejoined++;
-
       } catch (err) {
         log('ERROR', 'Auto-rejoin failed', { guild: guild.name, error: err.message });
       }
@@ -91,9 +87,10 @@ module.exports = {
 
     log('INFO', rejoined > 0 ? `Auto-rejoined ${rejoined} channel(s)` : 'No channels to auto-rejoin');
 
-    // ── Start background tasks ────────────────────────────────────────────────
+    // ── Background tasks ──────────────────────────────────────────────────────
     startHeartbeat(client);
     startStatusUpdater(client);
+    startStreamerPoller(client);
     await updatePanel(client);
 
     log('INFO', 'Bot fully ready');
