@@ -1,10 +1,11 @@
 const {
   SlashCommandBuilder, MessageFlags, PermissionFlagsBits, ChannelType,
 } = require('discord.js');
-const { log }                  = require('../src/logger');
-const { run, selectOne }       = require('../src/database');
-const { parseStreamerUrl }      = require('../src/platforms/parseUrl');
-const { resolveHandle }        = require('../src/platforms/youtube');
+const { log }             = require('../src/logger');
+const { run, selectOne }  = require('../src/database');
+const { parseStreamerUrl } = require('../src/platforms/parseUrl');
+const { resolveHandle: resolveYouTube, getDisplayName: ytDisplayName } = require('../src/platforms/youtube');
+const { getDisplayName: twitchDisplayName } = require('../src/platforms/twitch');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -29,22 +30,21 @@ module.exports = {
     )
     .addStringOption(opt =>
       opt.setName('display_name')
-        .setDescription('Custom display name for embeds (optional)')
+        .setDescription('Override the display name shown in embeds (optional)')
         .setRequired(false)
     ),
 
   async execute(interaction) {
     const { guild, member } = interaction;
-    const input       = interaction.options.getString('url');
-    const channel     = interaction.options.getChannel('channel');
-    const role        = interaction.options.getRole('role');
-    const displayName = interaction.options.getString('display_name') || null;
+    const input           = interaction.options.getString('url');
+    const channel         = interaction.options.getChannel('channel');
+    const role            = interaction.options.getRole('role');
+    const overrideName    = interaction.options.getString('display_name') || null;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    // ── Parse the URL ─────────────────────────────────────────────────────────
+    // ── Parse URL ─────────────────────────────────────────────────────────────
     const parsed = parseStreamerUrl(input);
-
     if (!parsed) {
       return interaction.editReply({
         content: [
@@ -56,23 +56,21 @@ module.exports = {
       });
     }
 
-    let { platform, username } = parsed;
+    let { platform, username, displayHint } = parsed;
     const platformNames = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
 
-    // ── Resolve YouTube handles to channel IDs ────────────────────────────────
+    // ── Resolve YouTube handles ───────────────────────────────────────────────
     if (platform === 'youtube' && parsed.needsResolve) {
       await interaction.editReply({ content: `🔍 Resolving YouTube channel...` });
-
       if (!process.env.YOUTUBE_API_KEY) {
         return interaction.editReply({
-          content: '❌ `YOUTUBE_API_KEY` is not set in your environment variables. Add it in Discloud to enable YouTube notifications.',
+          content: '❌ `YOUTUBE_API_KEY` is not set. Add it in Discloud environment variables.',
         });
       }
-
-      const channelId = await resolveHandle(username);
+      const channelId = await resolveYouTube(username);
       if (!channelId) {
         return interaction.editReply({
-          content: `❌ Couldn't find a YouTube channel for **${username}**. Try using the direct channel ID link instead:\n\`https://youtube.com/channel/UCxxxxxxx\``,
+          content: `❌ Couldn't find a YouTube channel for **${username}**. Try using the direct channel link:\n\`https://youtube.com/channel/UCxxxxxxx\``,
         });
       }
       username = channelId;
@@ -83,22 +81,32 @@ module.exports = {
       'SELECT id FROM streamer_subscriptions WHERE guild_id = ? AND platform = ? AND username = ?',
       [guild.id, platform, username]
     );
-
     if (existing) {
-      return interaction.editReply({
-        content: `❌ That streamer is already being watched in this server.`,
-      });
+      return interaction.editReply({ content: `❌ That streamer is already being watched in this server.` });
     }
 
-    // ── Check bot permissions in the target channel ───────────────────────────
+    // ── Check bot permissions ─────────────────────────────────────────────────
     const botMember = await guild.members.fetchMe();
     if (!channel.permissionsFor(botMember).has(['SendMessages', 'EmbedLinks'])) {
       return interaction.editReply({
-        content: `❌ I don't have **Send Messages** and **Embed Links** permission in <#${channel.id}>.`,
+        content: `❌ I don't have **Send Messages** and **Embed Links** in <#${channel.id}>.`,
       });
     }
 
-    // ── Save to DB ────────────────────────────────────────────────────────────
+    // ── Auto-fetch display name if not overridden ─────────────────────────────
+    let displayName = overrideName;
+    if (!displayName) {
+      await interaction.editReply({ content: `🔍 Fetching streamer info...` });
+      if (platform === 'twitch') {
+        displayName = await twitchDisplayName(username).catch(() => null);
+      } else if (platform === 'youtube') {
+        displayName = await ytDisplayName(username).catch(() => null);
+      }
+      // Kick display name is fetched on first poll from the API response
+      displayName = displayName || displayHint || username;
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
     run(
       `INSERT INTO streamer_subscriptions
         (guild_id, platform, username, display_name, discord_channel_id, role_id, is_live)
@@ -106,13 +114,11 @@ module.exports = {
       [guild.id, platform, username, displayName, channel.id, role?.id || null]
     );
 
-    log('INFO', 'Streamer added', { guild: guild.name, platform, username, by: member.user.tag });
+    log('INFO', 'Streamer added', { guild: guild.name, platform, username, displayName, by: member.user.tag });
 
-    const name    = displayName || parsed.displayHint || username;
     const roleStr = role ? ` · pinging <@&${role.id}>` : '';
-
     return interaction.editReply({
-      content: `✅ Now watching **${name}** on **${platformNames[platform]}**.\nNotifications will post in <#${channel.id}>${roleStr}.`,
+      content: `✅ Now watching **${displayName}** on **${platformNames[platform]}**.\nNotifications will post in <#${channel.id}>${roleStr}.`,
     });
   },
 };
