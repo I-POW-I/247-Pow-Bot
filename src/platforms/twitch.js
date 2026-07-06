@@ -1,22 +1,29 @@
 /**
  * Twitch Helix API wrapper.
- * Requires TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env
- * Uses native fetch — handles gzip compression and errors properly.
+ * Requires TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in Discloud environment variables.
+ *
+ * If you're seeing "token request failed: 403" in logs:
+ *   1. Go to dev.twitch.tv/console/apps
+ *   2. Create an application (category: Other, redirect: http://localhost)
+ *   3. Copy the Client ID and generate a Client Secret
+ *   4. Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in Discloud Variables
  */
 
 const { log } = require('../logger');
 
 let accessToken    = null;
 let tokenExpiresAt = 0;
+let tokenFailed    = false; // Stop retrying if credentials are wrong
 
 async function getToken() {
+  if (tokenFailed) throw new Error('Twitch credentials invalid — check TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in Discloud Variables');
   if (accessToken && Date.now() < tokenExpiresAt - 60000) return accessToken;
 
   const clientId     = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error('TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET missing from .env');
+    throw new Error('TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET not set in Discloud Variables');
   }
 
   const res = await fetch('https://id.twitch.tv/oauth2/token', {
@@ -26,20 +33,19 @@ async function getToken() {
     signal:  AbortSignal.timeout(10000),
   });
 
-  if (!res.ok) {
-    throw new Error(`Twitch token request failed: ${res.status}`);
+  if (res.status === 403 || res.status === 401) {
+    tokenFailed = true;
+    throw new Error(`Twitch credentials rejected (${res.status}) — verify your Client ID and Secret at dev.twitch.tv/console`);
   }
+
+  if (!res.ok) throw new Error(`Twitch token endpoint returned ${res.status}`);
 
   const data = await res.json();
-
-  if (!data.access_token) {
-    throw new Error(`Twitch token response missing access_token: ${JSON.stringify(data)}`);
-  }
+  if (!data.access_token) throw new Error('Twitch token response missing access_token');
 
   accessToken    = data.access_token;
   tokenExpiresAt = Date.now() + data.expires_in * 1000;
-
-  log('INFO', 'Twitch access token refreshed');
+  tokenFailed    = false;
   return accessToken;
 }
 
@@ -53,10 +59,7 @@ async function twitchGet(path) {
     signal: AbortSignal.timeout(10000),
   });
 
-  if (!res.ok) {
-    throw new Error(`Twitch API ${res.status} for ${path}`);
-  }
-
+  if (!res.ok) throw new Error(`Twitch API ${res.status} for ${path}`);
   return res.json();
 }
 
@@ -67,9 +70,9 @@ async function getStreamStatus(username) {
       twitchGet(`users?login=${encodeURIComponent(username.toLowerCase())}`),
     ]);
 
-    const stream  = streamData.data?.[0];
-    const user    = userData.data?.[0];
-    const isLive  = !!stream;
+    const stream = streamData.data?.[0];
+    const user   = userData.data?.[0];
+    const isLive = !!stream;
 
     return {
       isLive,
@@ -81,14 +84,10 @@ async function getStreamStatus(username) {
       displayName: user?.display_name || username,
     };
   } catch (err) {
-    log('WARN', `Twitch check failed for ${username}`, { error: err.message });
-    return null;
+    return { error: err.message };
   }
 }
 
-/**
- * Fetch display name for a Twitch user — used when adding a streamer.
- */
 async function getDisplayName(username) {
   try {
     const data = await twitchGet(`users?login=${encodeURIComponent(username.toLowerCase())}`);
@@ -96,4 +95,16 @@ async function getDisplayName(username) {
   } catch { return null; }
 }
 
-module.exports = { getStreamStatus, getDisplayName };
+/**
+ * Test credentials at startup — logs a clear warning if they're wrong.
+ */
+async function validateCredentials() {
+  try {
+    await getToken();
+    log('INFO', 'Twitch credentials validated');
+  } catch (err) {
+    log('WARN', `Twitch: ${err.message}`);
+  }
+}
+
+module.exports = { getStreamStatus, getDisplayName, validateCredentials };
