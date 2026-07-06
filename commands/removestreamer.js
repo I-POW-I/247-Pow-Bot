@@ -1,59 +1,54 @@
+/**
+ * /removestreamer — shows a dropdown of currently watched streamers.
+ * User picks from the list rather than typing a URL.
+ * Handled via interactionCreate for the StringSelectMenu response.
+ */
+
 const {
-  SlashCommandBuilder, MessageFlags, PermissionFlagsBits,
+  SlashCommandBuilder, MessageFlags, EmbedBuilder,
+  ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits,
 } = require('discord.js');
-const { log }             = require('../src/logger');
-const { run, selectOne }  = require('../src/database');
-const { parseStreamerUrl } = require('../src/platforms/parseUrl');
+const { selectAll } = require('../src/database');
+
+const EMOJI = { kick: '🟢', twitch: '🟣', youtube: '🔴' };
+const NAMES = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removestreamer')
-    .setDescription('Stop watching a streamer — paste their channel link')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName('url')
-        .setDescription('Channel link — same one you used with /addstreamer')
-        .setRequired(true)
-    ),
+    .setDescription('Stop watching a streamer — pick from your current list')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
-    const { guild, member } = interaction;
-    const input = interaction.options.getString('url');
+    const { guild } = interaction;
 
-    const parsed = parseStreamerUrl(input);
-    if (!parsed) {
+    const subs = selectAll(
+      'SELECT * FROM streamer_subscriptions WHERE guild_id = ? ORDER BY platform, display_name, username',
+      [guild.id]
+    );
+
+    if (subs.length === 0) {
       return interaction.reply({
-        content: '❌ Couldn\'t recognise that link. Use the same link you added them with.',
+        content: '📭 No streamers are being watched in this server. Use `/addstreamer` to add one.',
         flags: [MessageFlags.Ephemeral],
       });
     }
 
-    const { platform, username, displayHint } = parsed;
+    const options = subs.map(s => ({
+      label:       `${s.display_name || s.username}`,
+      description: `${NAMES[s.platform]} · ${s.is_live === 1 ? '🔴 Currently live' : 'Offline'}`,
+      value:       `${s.id}`,
+      emoji:       EMOJI[s.platform],
+    }));
 
-    const existing = selectOne(
-      'SELECT id, display_name FROM streamer_subscriptions WHERE guild_id = ? AND platform = ? AND username = ?',
-      [guild.id, platform, username]
-    );
-
-    if (!existing) {
-      return interaction.reply({
-        content: `❌ That streamer isn't being watched in this server.`,
-        flags: [MessageFlags.Ephemeral],
-      });
-    }
-
-    run(
-      'DELETE FROM streamer_subscriptions WHERE guild_id = ? AND platform = ? AND username = ?',
-      [guild.id, platform, username]
-    );
-
-    log('INFO', 'Streamer removed', { guild: guild.name, platform, username, by: member.user.tag });
-
-    const names = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
-    const name  = existing.display_name || displayHint || username;
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId('remove_streamer_select')
+      .setPlaceholder('Pick a streamer to remove...')
+      .addOptions(options);
 
     return interaction.reply({
-      content: `✅ No longer watching **${name}** on **${names[platform]}**.`,
+      content: 'Select the streamer you want to remove:',
+      components: [new ActionRowBuilder().addComponents(menu)],
       flags: [MessageFlags.Ephemeral],
     });
   },
