@@ -54,6 +54,7 @@ async function init() {
         last_message_id     TEXT,
         last_went_live      INTEGER,
         last_stream_title   TEXT,
+        last_updated_at     INTEGER,
         UNIQUE(guild_id, platform, username)
       );
       CREATE INDEX IF NOT EXISTS idx_sub_platform ON streamer_subscriptions (platform);
@@ -61,6 +62,15 @@ async function init() {
     `);
 
     save();
+
+    // Migrate existing tables — add columns that may not exist yet
+    const migrations = [
+      'ALTER TABLE streamer_subscriptions ADD COLUMN last_updated_at INTEGER',
+    ];
+    for (const m of migrations) {
+      try { db.run(m); save(); } catch (_) { /* column already exists */ }
+    }
+
     log('INFO', 'SQLite database ready (data/pow-bot.db)');
   } catch (err) {
     log('ERROR', 'SQLite init failed — tracking unavailable', { error: err.message });
