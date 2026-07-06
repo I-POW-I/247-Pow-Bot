@@ -1,10 +1,8 @@
-const {
-  SlashCommandBuilder, MessageFlags, EmbedBuilder,
-} = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, EmbedBuilder } = require('discord.js');
 const { selectAll } = require('../src/database');
 
-const PLATFORM_EMOJI = { kick: '🟢', twitch: '🟣', youtube: '🔴' };
-const PLATFORM_NAMES = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
+const EMOJI = { kick: '🟢', twitch: '🟣', youtube: '🔴' };
+const NAMES = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,18 +13,17 @@ module.exports = {
     const { guild } = interaction;
 
     const subs = selectAll(
-      'SELECT * FROM streamer_subscriptions WHERE guild_id = ? ORDER BY platform, username',
+      'SELECT * FROM streamer_subscriptions WHERE guild_id = ? ORDER BY platform, display_name, username',
       [guild.id]
     );
 
     if (subs.length === 0) {
       return interaction.reply({
-        content: '📭 No streamers are being watched in this server. Use `/addstreamer` to add one.',
+        content: '📭 No streamers are being watched. Use `/addstreamer` to add one.',
         flags: [MessageFlags.Ephemeral],
       });
     }
 
-    // Group by platform
     const grouped = { kick: [], twitch: [], youtube: [] };
     for (const sub of subs) {
       if (grouped[sub.platform]) grouped[sub.platform].push(sub);
@@ -42,15 +39,16 @@ module.exports = {
       if (list.length === 0) continue;
 
       const lines = list.map(s => {
+        // Use display_name if set, otherwise username (never show raw channel IDs)
         const name    = s.display_name || s.username;
-        const status  = s.is_live ? '🔴 LIVE' : '⚫ Offline';
+        const status  = s.is_live === 1 ? '🔴 **LIVE**' : '⚫ Offline';
         const channel = `<#${s.discord_channel_id}>`;
-        const role    = s.role_id ? ` · <@&${s.role_id}>` : '';
+        const role    = s.role_id ? ` <@&${s.role_id}>` : '';
         return `**${name}** — ${status}\n${channel}${role}`;
       }).join('\n\n');
 
       embed.addFields({
-        name:   `${PLATFORM_EMOJI[platform]} ${PLATFORM_NAMES[platform]}`,
+        name:   `${EMOJI[platform]} ${NAMES[platform]}`,
         value:  lines,
         inline: false,
       });
