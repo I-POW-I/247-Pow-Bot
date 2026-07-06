@@ -1,7 +1,10 @@
 /**
  * YouTube Data API v3 wrapper.
- * Requires YOUTUBE_API_KEY in .env
- * Uses native fetch.
+ * Requires YOUTUBE_API_KEY in Discloud Variables.
+ *
+ * Uses RSS feed + videos.list instead of search endpoint.
+ * Cost: ~1 quota unit per check vs 100 with search.
+ * Free quota: 10,000 units/day — this approach uses ~288/day per channel.
  */
 
 const { log } = require('../logger');
@@ -11,16 +14,22 @@ async function ytGet(path) {
     signal: AbortSignal.timeout(10000),
   });
 
+  if (res.status === 429) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`YouTube API 429 — quota exceeded. Resets at midnight Pacific Time. Body: ${body.slice(0, 120)}`);
+  }
+
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`YouTube API ${res.status}: ${text.slice(0, 100)}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(`YouTube API ${res.status}: ${body.slice(0, 120)}`);
   }
 
   return res.json();
 }
 
 /**
- * Resolve a YouTube handle or /c/ or /user/ path to a channel ID.
+ * Resolve a YouTube handle or /c/ path to a channel ID.
+ * Costs 1 quota unit — only called once when adding a streamer.
  */
 async function resolveHandle(handle) {
   try {
@@ -29,11 +38,9 @@ async function resolveHandle(handle) {
 
     const clean = handle.replace(/^@/, '');
 
-    // Try forHandle first (works for @ handles)
-    const byHandle = await ytGet(`channels?part=id,snippet&forHandle=${encodeURIComponent(clean)}&key=${apiKey}`);
+    const byHandle = await ytGet(`channels?part=id&forHandle=${encodeURIComponent(clean)}&key=${apiKey}`);
     if (byHandle.items?.[0]?.id) return byHandle.items[0].id;
 
-    // Fallback: forUsername (legacy channel format)
     const byUser = await ytGet(`channels?part=id&forUsername=${encodeURIComponent(clean)}&key=${apiKey}`);
     return byUser.items?.[0]?.id || null;
   } catch (err) {
@@ -43,7 +50,8 @@ async function resolveHandle(handle) {
 }
 
 /**
- * Fetch a channel's display name by channel ID.
+ * Fetch channel display name by ID.
+ * Costs 1 quota unit — only called when adding a streamer.
  */
 async function getDisplayName(channelId) {
   try {
@@ -55,52 +63,78 @@ async function getDisplayName(channelId) {
 }
 
 /**
+ * Get recent video IDs from a channel's public RSS feed.
+ * Costs ZERO quota units — no API key needed.
+ * Returns up to 5 most recent video IDs.
+ */
+async function getRecentVideoIds(channelId) {
+  const res = await fetch(
+    `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
+    { signal: AbortSignal.timeout(10000) }
+  );
+
+  if (!res.ok) return [];
+
+  const xml  = await res.text();
+  const ids  = [...xml.matchAll(/<yt:videoId>([^<]+)<\/yt:videoId>/g)]
+    .map(m => m[1])
+    .slice(0, 5); // Only check the 5 most recent
+
+  return ids;
+}
+
+/**
  * Get live status for a YouTube channel.
+ *
+ * Flow:
+ *   1. Fetch RSS feed (0 quota units) to get recent video IDs
+ *   2. Call videos.list with all IDs in one request (1 quota unit)
+ *   3. Check liveBroadcastContent === 'live'
+ *
+ * Total cost: 1 quota unit per check (vs 100 with search endpoint).
  */
 async function getStreamStatus(channelId) {
   try {
     const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) throw new Error('YOUTUBE_API_KEY not set');
 
-    // Search for active live streams on this channel
-    const search = await ytGet(
-      `search?part=snippet&channelId=${channelId}&eventType=live&type=video&key=${apiKey}`
+    // Step 1: Get recent video IDs from RSS (free)
+    const videoIds = await getRecentVideoIds(channelId);
+    if (videoIds.length === 0) return { isLive: false, displayName: channelId };
+
+    // Step 2: Check all IDs in a single API call (1 unit)
+    const data = await ytGet(
+      `videos?part=snippet,liveStreamingDetails&id=${videoIds.join(',')}&key=${apiKey}`
     );
 
-    const item    = search.items?.[0];
-    const isLive  = !!item;
-    const videoId = item?.id?.videoId;
+    // Find the live video if any
+    const liveVideo = data.items?.find(v => v.snippet?.liveBroadcastContent === 'live');
+    const isLive    = !!liveVideo;
 
-    let viewers     = null;
-    let displayName = null;
+    // Get display name from any video snippet (saves an extra API call)
+    const channelTitle = data.items?.[0]?.snippet?.channelTitle || channelId;
 
-    if (isLive && videoId) {
-      // Fetch viewer count — separate API call
-      const stats = await ytGet(
-        `videos?part=liveStreamingDetails&id=${videoId}&key=${apiKey}`
-      );
-      const liveDetails = stats.items?.[0]?.liveStreamingDetails;
-      viewers = parseInt(liveDetails?.concurrentViewers) || 0;
+    if (!isLive) {
+      return { isLive: false, displayName: channelTitle };
     }
 
-    // Always fetch channel display name
-    const channelData = await ytGet(`channels?part=snippet&id=${channelId}&key=${apiKey}`);
-    displayName = channelData.items?.[0]?.snippet?.title || channelId;
+    const viewers   = parseInt(liveVideo.liveStreamingDetails?.concurrentViewers) || 0;
+    const thumbnail = liveVideo.snippet?.thumbnails?.maxres?.url
+      || liveVideo.snippet?.thumbnails?.high?.url
+      || null;
 
     return {
-      isLive,
-      title:       isLive ? item.snippet?.title || 'Untitled Stream' : null,
-      category:    null, // YouTube has no game field — field omitted in embed
+      isLive:      true,
+      title:       liveVideo.snippet?.title || 'Untitled Stream',
+      category:    null, // YouTube has no game field
       viewers,
-      thumbnail:   isLive
-        ? item.snippet?.thumbnails?.maxres?.url || item.snippet?.thumbnails?.high?.url || null
-        : null,
-      url:         isLive ? `https://youtube.com/watch?v=${videoId}` : `https://youtube.com/channel/${channelId}`,
-      displayName,
+      thumbnail,
+      url:         `https://youtube.com/watch?v=${liveVideo.id}`,
+      displayName: channelTitle,
     };
+
   } catch (err) {
-    log('WARN', `YouTube check failed for ${channelId}`, { error: err.message });
-    return null;
+    return { error: err.message };
   }
 }
 
