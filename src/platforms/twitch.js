@@ -1,57 +1,13 @@
 /**
  * Twitch Helix API wrapper.
  * Requires TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env
- *
- * Uses Client Credentials flow — app access token, not user token.
- * Token auto-refreshes when it expires.
+ * Uses native fetch — handles gzip compression and errors properly.
  */
 
-const https = require('https');
+const { log } = require('../logger');
 
 let accessToken    = null;
 let tokenExpiresAt = 0;
-
-function post(url, body) {
-  return new Promise((resolve, reject) => {
-    const data = Buffer.from(body);
-    const opts = {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': data.length },
-    };
-    const req = https.request(url, opts, res => {
-      let out = '';
-      res.on('data', c => out += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(out)); }
-        catch { reject(new Error('Invalid JSON from Twitch auth')); }
-      });
-    });
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
-}
-
-function get(url, token) {
-  return new Promise((resolve, reject) => {
-    const opts = {
-      headers: {
-        'Client-ID':    process.env.TWITCH_CLIENT_ID,
-        'Authorization': `Bearer ${token}`,
-      },
-    };
-    const req = https.get(url, opts, res => {
-      let out = '';
-      res.on('data', c => out += c);
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(out) }); }
-        catch { reject(new Error('Invalid JSON from Twitch API')); }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(8000, () => { req.destroy(); reject(new Error('Twitch API timeout')); });
-  });
-}
 
 async function getToken() {
   if (accessToken && Date.now() < tokenExpiresAt - 60000) return accessToken;
@@ -59,58 +15,85 @@ async function getToken() {
   const clientId     = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) throw new Error('TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET not set in .env');
+  if (!clientId || !clientSecret) {
+    throw new Error('TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET missing from .env');
+  }
 
-  const res = await post(
-    'https://id.twitch.tv/oauth2/token',
-    `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`
-  );
+  const res = await fetch('https://id.twitch.tv/oauth2/token', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+    signal:  AbortSignal.timeout(10000),
+  });
 
-  if (!res.access_token) throw new Error('Failed to get Twitch access token');
+  if (!res.ok) {
+    throw new Error(`Twitch token request failed: ${res.status}`);
+  }
 
-  accessToken    = res.access_token;
-  tokenExpiresAt = Date.now() + (res.expires_in * 1000);
+  const data = await res.json();
+
+  if (!data.access_token) {
+    throw new Error(`Twitch token response missing access_token: ${JSON.stringify(data)}`);
+  }
+
+  accessToken    = data.access_token;
+  tokenExpiresAt = Date.now() + data.expires_in * 1000;
+
+  log('INFO', 'Twitch access token refreshed');
   return accessToken;
 }
 
-/**
- * Get live status for a Twitch channel.
- * @param {string} username
- * @returns {{ isLive, title, category, viewers, thumbnail, url, displayName } | null}
- */
+async function twitchGet(path) {
+  const token = await getToken();
+  const res   = await fetch(`https://api.twitch.tv/helix/${path}`, {
+    headers: {
+      'Client-ID':     process.env.TWITCH_CLIENT_ID,
+      'Authorization': `Bearer ${token}`,
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Twitch API ${res.status} for ${path}`);
+  }
+
+  return res.json();
+}
+
 async function getStreamStatus(username) {
   try {
-    const token = await getToken();
-    const { status, body } = await get(
-      `https://api.twitch.tv/helix/streams?user_login=${username.toLowerCase()}`,
-      token
-    );
+    const [streamData, userData] = await Promise.all([
+      twitchGet(`streams?user_login=${encodeURIComponent(username.toLowerCase())}`),
+      twitchGet(`users?login=${encodeURIComponent(username.toLowerCase())}`),
+    ]);
 
-    if (status !== 200) return null;
-
-    const stream    = body.data?.[0];
-    const isLive    = !!stream;
-
-    // Fetch user info for display name and profile picture
-    const { body: userBody } = await get(
-      `https://api.twitch.tv/helix/users?login=${username.toLowerCase()}`,
-      token
-    );
-    const user = userBody.data?.[0];
+    const stream  = streamData.data?.[0];
+    const user    = userData.data?.[0];
+    const isLive  = !!stream;
 
     return {
       isLive,
       title:       isLive ? stream.title || 'Untitled Stream' : null,
-      category:    isLive ? stream.game_name || 'Unknown' : null,
-      viewers:     isLive ? stream.viewer_count || 0 : null,
-      // Replace {width} and {height} placeholders in thumbnail URL
+      category:    isLive ? (stream.game_name || null) : null,
+      viewers:     isLive ? (stream.viewer_count ?? 0) : null,
       thumbnail:   isLive ? stream.thumbnail_url?.replace('{width}', '1280').replace('{height}', '720') : null,
       url:         `https://twitch.tv/${username.toLowerCase()}`,
       displayName: user?.display_name || username,
     };
-  } catch {
+  } catch (err) {
+    log('WARN', `Twitch check failed for ${username}`, { error: err.message });
     return null;
   }
 }
 
-module.exports = { getStreamStatus };
+/**
+ * Fetch display name for a Twitch user — used when adding a streamer.
+ */
+async function getDisplayName(username) {
+  try {
+    const data = await twitchGet(`users?login=${encodeURIComponent(username.toLowerCase())}`);
+    return data.data?.[0]?.display_name || null;
+  } catch { return null; }
+}
+
+module.exports = { getStreamStatus, getDisplayName };
