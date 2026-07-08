@@ -12,7 +12,7 @@ module.exports = {
       .setColor(0x7b8cff)
       .addFields(
         { name: 'Core',            value: '`/panel`, `/status`, `/ping`, `/serverinfo`, `/help`',                         inline: false },
-        { name: 'Voice Stats',     value: '`/vctop`, `/sessions`',                                                        inline: false },
+        { name: 'Voice Stats',     value: '`/top`, `/sessions`',                                                        inline: false },
         { name: 'Streamer Alerts', value: '`/addstreamer`, `/streamers`, `/removestreamer`, `/checkstream`',              inline: false },
         { name: 'Configuration',   value: '`/setlogchannel`, `/setbotrole`, `/verify setup`',                             inline: false },
         { name: 'Moderation',      value: '`/purge`, `/clearcommands`',                                                   inline: false },

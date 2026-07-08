@@ -11,7 +11,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('vctop')
+    .setName('top')
     .setDescription('Voice channel leaderboard — top members by time spent in VC')
     .addStringOption(opt =>
       opt
