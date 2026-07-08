@@ -214,8 +214,52 @@ function getServerTotals(guildId) {
   ) || { total_sessions: 0, total_ms: 0 };
 }
 
+/**
+ * Top N users in a guild by total VC time.
+ * Active (open) sessions count using current time so live users rank correctly.
+ * @param {string} guildId
+ * @param {number} limit
+ * @param {number} sinceMs  — epoch ms cutoff; 0 = all time
+ */
+function getLeaderboard(guildId, limit = 10, sinceMs = 0) {
+  const now = Date.now();
+  const params = sinceMs
+    ? [now, guildId, sinceMs, limit]
+    : [now, guildId, limit];
+
+  return selectAll(
+    `SELECT user_id,
+            COALESCE(SUM(CASE WHEN duration_ms IS NOT NULL THEN duration_ms ELSE (? - joined_at) END), 0) AS total_ms,
+            COUNT(*) AS sessions
+     FROM vc_sessions
+     WHERE guild_id = ?${sinceMs ? ' AND joined_at >= ?' : ''}
+     GROUP BY user_id
+     ORDER BY total_ms DESC
+     LIMIT ?`,
+    params
+  );
+}
+
+/**
+ * Last N completed + active sessions for a user in a guild.
+ * @param {string} userId
+ * @param {string} guildId
+ * @param {number} limit
+ */
+function getUserSessions(userId, guildId, limit = 10) {
+  return selectAll(
+    `SELECT channel_name, joined_at, left_at, duration_ms
+     FROM vc_sessions
+     WHERE user_id = ? AND guild_id = ?
+     ORDER BY joined_at DESC
+     LIMIT ?`,
+    [userId, guildId, limit]
+  );
+}
+
 module.exports = {
   init, run, selectOne, selectAll,
   startSession, endSession, getOpenSession,
   getUserStats, getServerTotals, formatMs,
+  getLeaderboard, getUserSessions,
 };
