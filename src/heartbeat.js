@@ -16,7 +16,6 @@ const HEALTHY = [
 let checkCount = 0;
 
 function startHeartbeat(client) {
-  log('HEART', 'Heartbeat started — checking every 2 minutes, logging every ~1 hour');
 
   setInterval(async () => {
     checkCount++;

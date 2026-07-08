@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { log } = require('./logger');
+const { log, logStep } = require('./logger');
 
 /**
  * Scans the /commands folder and loads every .js file onto client.commands.
@@ -22,10 +22,9 @@ function loadCommands(client) {
     }
 
     client.commands.set(command.data.name, command);
-    log('INFO', `Loaded command: /${command.data.name}`);
   }
 
-  log('INFO', `Loaded ${client.commands.size} command(s)`);
+  logStep('Commands', `${client.commands.size} loaded`);
 }
 
 /**
@@ -50,11 +49,10 @@ function loadEvents(client) {
     } else {
       client.on(event.name, (...args) => event.execute(...args, client));
     }
-
-    log('INFO', `Registered event: ${event.name}${event.once ? ' (once)' : ''}`);
   }
 
-  log('INFO', `Registered ${fs.readdirSync(eventsPath).filter(f => f.endsWith('.js')).length} event handler(s)`);
+  const count = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js')).length;
+  logStep('Events', `${count} registered`);
 }
 
 module.exports = { loadCommands, loadEvents };

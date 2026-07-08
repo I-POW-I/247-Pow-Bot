@@ -64,7 +64,6 @@ function startStatusUpdater(client) {
   };
   update();
   setInterval(update, PRESENCE_INTERVAL);
-  log('INFO', 'Presence updater started (60s interval)');
 }
 
 // ── Panel embed ───────────────────────────────────────────────────────────────

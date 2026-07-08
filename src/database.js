@@ -71,7 +71,6 @@ async function init() {
       try { db.run(m); save(); } catch (_) { /* column already exists */ }
     }
 
-    log('INFO', 'SQLite database ready (data/pow-bot.db)');
   } catch (err) {
     log('ERROR', 'SQLite init failed — tracking unavailable', { error: err.message });
     db = null;

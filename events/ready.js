@@ -1,6 +1,6 @@
 const { Events } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice');
-const { log }                     = require('../src/logger');
+const { log, logStep, logDivider } = require('../src/logger');
 const { startHeartbeat, attachDisconnectHandler } = require('../src/heartbeat');
 const { startStatusUpdater, updatePanel }         = require('../src/statusUpdater');
 const { getGuildConfig, getStats, setStats }      = require('../src/guildConfig');
@@ -15,11 +15,11 @@ module.exports = {
   once: true,
 
   async execute(client) {
-    log('INFO', `24/7 POW Bot logged in as ${client.user.tag}`);
-    log('INFO', `Serving ${client.guilds.cache.size} guild(s)`);
-
-    // ── Database ──────────────────────────────────────────────────────────────
+    // ── Database + Discord identity ───────────────────────────────────────────
     await initDatabase();
+    logStep('Database', 'SQLite ready');
+    logStep('Discord', client.user.tag);
+    logStep('Guilds', `${client.guilds.cache.size} server${client.guilds.cache.size !== 1 ? 's' : ''}`);
 
     // ── Slash commands ────────────────────────────────────────────────────────
     try {
@@ -27,13 +27,12 @@ module.exports = {
       const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
       const commandData = [...client.commands.values()].map(cmd => cmd.data.toJSON());
       await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commandData });
-      log('INFO', `Registered ${commandData.length} global slash command(s) for 24/7 POW Bot`);
+      logStep('Slash cmds', `${commandData.length} registered globally`);
     } catch (err) {
       log('ERROR', 'Failed to register slash commands', { error: err.message });
     }
 
     // ── Auto-rejoin ───────────────────────────────────────────────────────────
-    log('INFO', 'Checking for channels to auto-rejoin...');
     let rejoined = 0;
 
     for (const guild of client.guilds.cache.values()) {
@@ -85,7 +84,7 @@ module.exports = {
       }
     }
 
-    log('INFO', rejoined > 0 ? `Auto-rejoined ${rejoined} channel(s)` : 'No channels to auto-rejoin for 24/7 POW Bot');
+    logStep('Voice', rejoined > 0 ? `Auto-rejoined ${rejoined} channel${rejoined !== 1 ? 's' : ''}` : 'No channels to resume');
 
     // ── Background tasks ──────────────────────────────────────────────────────
     startHeartbeat(client);
@@ -93,6 +92,9 @@ module.exports = {
     startStreamerPoller(client);
     await updatePanel(client);
 
-    log('INFO', '24/7 POW Bot is fully ready');
+    logStep('Services', 'Heartbeat · Presence · Streamers');
+    logDivider();
+    logDivider('24/7 POW Bot is fully ready');
+    logDivider();
   },
 };

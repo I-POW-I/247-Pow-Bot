@@ -190,11 +190,7 @@ async function startStreamerPoller(client) {
   const hasTwitch  = !!(process.env.TWITCH_CLIENT_ID && process.env.TWITCH_CLIENT_SECRET);
   const hasYoutube = !!process.env.YOUTUBE_API_KEY;
 
-  log('INFO', 'Streamer poller online', {
-    kick:    'enabled',
-    twitch:  hasTwitch  ? 'enabled' : 'disabled — set TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET',
-    youtube: hasYoutube ? 'enabled' : 'disabled — set YOUTUBE_API_KEY',
-  });
+  // startup log suppressed — covered by ✓ Services in boot sequence
 
   if (hasTwitch) await twitch.validateCredentials();
 

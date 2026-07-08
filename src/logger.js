@@ -28,4 +28,20 @@ function log(level, message, context = {}) {
   console.log(`[${ts}] ${icon} [${level}] ${message}${ctx}`);
 }
 
-module.exports = { log };
+/** Single startup step — clean checkmark line used during the boot sequence */
+function logStep(label, value = '') {
+  const ts = new Date().toISOString();
+  console.log(`[${ts}]  ✓  ${label.padEnd(12)} ${value}`);
+}
+
+/** Visual divider — omit text for a plain bar, pass text for a labelled section */
+function logDivider(text) {
+  const bar = '─'.repeat(56);
+  if (text !== undefined) {
+    console.log(text ? `\n  ${text}\n` : '');
+  } else {
+    console.log(`  ${bar}`);
+  }
+}
+
+module.exports = { log, logStep, logDivider };

@@ -1,8 +1,8 @@
 const { loadCommands, loadEvents } = require('./src/registry');
-const { log } = require('./src/logger');
+const { log, logDivider } = require('./src/logger');
 const client = require('./src/client');
-const { init: initDatabase } = require('./src/database');
 require('dotenv').config();
+const { version } = require('./package.json');
 
 async function main() {
   const missing = ['BOT_TOKEN', 'CLIENT_ID'].filter(key => !process.env[key]);
@@ -11,12 +11,15 @@ async function main() {
     process.exit(1);
   }
 
-  await initDatabase();
+  // ── Startup banner ──────────────────────────────────────────────────────────
+  logDivider();
+  logDivider(`24/7 POW Bot  ·  v${version}`);
+  logDivider();
+
   loadCommands(client);
   loadEvents(client);
 
   await client.login(process.env.BOT_TOKEN);
-  log('INFO', 'Bot startup complete');
 }
 
 main().catch((error) => {
