@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>247 POW Bot — Project Roadmap</title>
+<style>
+  :root {
+    --bg: #090b10;
+    --surface: #131723;
+    --surface-2: #1a2030;
+    --border: #273041;
+    --text: #f7f8fc;
+    --muted: #9aa6bb;
+    --dim: #c4cedb;
+    --accent: #7b8cff;
+    --ok: #4ecf85;
+    --warn: #e6b84f;
+    --danger: #e56a6f;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #111625 0%, #181d2a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 24px 28px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+
+  .header-wrap { max-width: 1040px; margin: 0 auto; }
+  .header-top { display: flex; align-items: flex-start; gap: 14px; }
+  .bot-icon {
+    width: 58px; height: 58px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), #5dc4ff);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 10px 28px rgba(123,140,255,0.22);
+  }
+  .bot-icon svg {
+    width: 30px;
+    height: 30px;
+    display: block;
+    color: #fff;
+    opacity: 0.96;
+  }
+  .header-text h1 { font-size: 24px; font-weight: 600; color: #fff; }
+  .header-text p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  .header-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .stat {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; min-width: 110px;
+  }
+  .stat-num { font-size: 18px; font-weight: 600; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 22px 0 4px;
+  }
+  .overview-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 15px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.14);
+  }
+  .overview-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .overview-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .overview-text {
+    font-size: 13px;
+    color: var(--dim);
+    line-height: 1.55;
+  }
+  .overview-list {
+    list-style: none;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .overview-list li {
+    font-size: 13px;
+    color: var(--dim);
+    line-height: 1.45;
+    display: flex;
+    gap: 8px;
+  }
+  .overview-list li::before {
+    content: '•';
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  main { max-width: 1040px; margin: 0 auto; padding: 24px; }
+  .phase-label { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; }
+  .phase-label:first-child { margin-top: 0; }
+  .phase-pill { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .phase-line { flex: 1; height: 1px; background: var(--border); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 10px; overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.16);
+  }
+  .card-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; user-select: none; }
+  .card-num { font-size: 11px; color: var(--muted); min-width: 28px; }
+  .card-icon { font-size: 18px; min-width: 28px; text-align: center; }
+  .card-title-block { flex: 1; }
+  .card-title { font-size: 15px; font-weight: 600; color: #fff; }
+  .card-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .tag-done { color: var(--ok); border-color: rgba(79,191,127,0.25); background: rgba(79,191,127,0.08); }
+  .tag-wip { color: var(--warn); border-color: rgba(216,170,61,0.25); background: rgba(216,170,61,0.08); }
+  .tag-high { color: #f2a96b; border-color: rgba(242,169,107,0.24); background: rgba(242,169,107,0.08); }
+  .tag-medium { color: var(--warn); border-color: rgba(216,170,61,0.2); background: rgba(216,170,61,0.06); }
+  .tag-low { color: var(--ok); border-color: rgba(79,191,127,0.2); background: rgba(79,191,127,0.06); }
+  .tag-big { color: #b48bf0; border-color: rgba(180,139,240,0.22); background: rgba(180,139,240,0.08); }
+  .tag-idea { color: #7dc7ff; border-color: rgba(125,199,255,0.22); background: rgba(125,199,255,0.08); }
+  .tag-progress { color: #8fb8ff; border-color: rgba(123,140,255,0.24); background: rgba(123,140,255,0.08); }
+  .tag-blocked { color: #f28b8f; border-color: rgba(229,106,111,0.24); background: rgba(229,106,111,0.08); }
+  .chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; margin-left: 6px; }
+  .card.open .chevron { transform: rotate(180deg); }
+  .card-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
+  .card.open .card-body { display: block; }
+  .body-text { color: var(--dim); font-size: 14px; line-height: 1.6; }
+  .checklist { list-style: none; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--dim); line-height: 1.5; }
+  .checklist li::before { content: '•'; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+  .checklist li.done { color: var(--text); }
+  .checklist li.done::before { color: var(--ok); }
+  .info-box, .warn-box, .tip-box {
+    border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 10px;
+  }
+  .info-box { background: rgba(108,124,255,0.08); border: 1px solid rgba(108,124,255,0.2); color: #c8d0ff; }
+  .warn-box { background: rgba(216,170,61,0.08); border: 1px solid rgba(216,170,61,0.2); color: #f0d18a; }
+  .tip-box { background: rgba(79,191,127,0.08); border: 1px solid rgba(79,191,127,0.2); color: #bfe8ce; }
+  .cmd-chip { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: #dce4f3; padding: 2px 7px; margin: 2px; }
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .summary-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
+  .summary-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--dim); vertical-align: top; }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table td:first-child { color: var(--text); font-weight: 500; }
+  .status-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .release-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .release-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .release-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .release-name { font-size: 14px; font-weight: 700; color: #fff; }
+  .release-meta { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .release-card ul { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .release-card li { font-size: 13px; color: var(--dim); line-height: 1.45; display: flex; gap: 8px; }
+  .release-card li::before { content: '•'; color: var(--accent); flex-shrink: 0; }
+  footer { border-top: 1px solid var(--border); padding: 20px 24px; text-align: center; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-wrap">
+    <div class="header-top">
+      <div class="bot-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 8.5A7.5 7.5 0 0 1 12 5.5a7.5 7.5 0 0 1 6 3" />
+          <path d="M5.5 12h13" />
+          <path d="M7 15.5A7.5 7.5 0 0 0 12 18.5a7.5 7.5 0 0 0 5-3" />
+          <path d="M9 9.5h6" />
+          <path d="M9 14.5h6" />
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1>247 POW Bot — Project Roadmap</h1>
+        <p>Updated July 7, 2026 at 5:11 AM · A detailed view of what is built, what still needs validation, and what is planned next.</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="stat"><div class="stat-num" style="color:var(--ok)">11</div><div class="stat-label">Live features</div></div>
+      <div class="stat"><div class="stat-num" style="color:var(--warn)">3</div><div class="stat-label">Needs attention</div></div>
+      <div class="stat"><div class="stat-num" style="color:#f2a96b">4</div><div class="stat-label">Next up</div></div>
+      <div class="stat"><div class="stat-num" style="color:#b48bf0">4</div><div class="stat-label">Later ideas</div></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="overview-grid">
+    <section class="overview-panel">
+      <div class="overview-kicker">Build snapshot</div>
+      <div class="overview-title">What 24/7 POW Bot already does</div>
+      <p class="overview-text">The bot is already operating as a voice uptime tool, moderation helper, and server utility suite with a branded control panel and persistent state.</p>
+      <ul class="overview-list">
+        <li>Maintains a 24/7 voice connection with silent audio and auto-recovery.</li>
+        <li>Posts a live control panel with buttons and member lookup tools.</li>
+        <li>Tracks voice sessions, server stats, logs, and streamer alerts.</li>
+      </ul>
+    </section>
+    <section class="overview-panel">
+      <div class="overview-kicker">Current focus</div>
+      <div class="overview-title">What still needs attention</div>
+      <p class="overview-text">A few areas still need real-world validation before the bot can be treated as fully production-hardened.</p>
+      <ul class="overview-list">
+        <li>Confirm that persisted files survive restarts on the hosting platform.</li>
+        <li>Make startup and external API failures easier to understand at a glance.</li>
+        <li>Verify the roadmap-facing experience remains polished and consistent.</li>
+      </ul>
+    </section>
+    <section class="overview-panel">
+      <div class="overview-kicker">Roadmap scope</div>
+      <div class="overview-title">What this page is tracking</div>
+      <p class="overview-text">This roadmap is not a feature wish list. It is a live picture of the current implementation, the blockers that matter, and the next best additions.</p>
+      <ul class="overview-list">
+        <li>Implemented features that are already live in the workspace.</li>
+        <li>Known risks tied to deployment, APIs, and command registration.</li>
+        <li>Upcoming work that improves onboarding and polish without changing the bot’s core identity.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="card open" id="accessguide">
+    <div class="card-header" onclick="toggle('accessguide')">
+      <span class="card-num">—</span><span class="card-icon">🔐</span>
+      <div class="card-title-block">
+        <div class="card-title">Roles and permission guide</div>
+        <div class="card-subtitle">A practical template for who can control the bot and what they should be able to do</div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <p class="body-text">Use this as the default permissions model for a server. It keeps control in the right hands, prevents casual users from changing the bot, and makes the experience predictable for admins.</p>
+      <table class="summary-table" style="margin-top:12px">
+        <tr><th>Role / Group</th><th>Who it is</th><th>Can do</th><th>Cannot do</th></tr>
+        <tr><td>Server owner</td><td>The guild owner</td><td>Use the bot when no bot-control role is set, recover access, manage setup</td><td>Should not be blocked from emergency admin actions</td></tr>
+        <tr><td>Administrator</td><td>Trusted staff with <span class="cmd-chip">Manage Server</span></td><td>Post the panel, configure logs, set verification, manage general setup</td><td>Should not control Leave / Force Leave unless explicitly granted</td></tr>
+        <tr><td>Bot control role</td><td>Custom role chosen with <span class="cmd-chip">/setbotrole</span></td><td>Use Leave and Force Leave controls from the panel</td><td>Should not grant broader admin powers by default</td></tr>
+        <tr><td>Verification role</td><td>The role assigned by <span class="cmd-chip">/verify setup</span></td><td>Unlock the community area or access gate you want verified users to reach</td><td>Should not be used for bot control or moderation</td></tr>
+        <tr><td>Regular members</td><td>Everyone else in the server</td><td>Use public info controls like My Info or Lookup when allowed</td><td>Should not join, leave, force leave, or change bot settings</td></tr>
+      </table>
+      <div class="release-grid" style="margin-top:14px; grid-template-columns: repeat(2, minmax(0, 1fr));">
+        <div class="release-card">
+          <div class="release-head">
+            <div>
+              <div class="release-name">Bot-side permissions</div>
+              <div class="release-meta">Required for the bot to function</div>
+            </div>
+            <span class="tag tag-progress">Template</span>
+          </div>
+          <ul>
+            <li><span class="cmd-chip">Connect</span> and <span class="cmd-chip">Speak</span> for the voice channel</li>
+            <li><span class="cmd-chip">Send Messages</span> and <span class="cmd-chip">Embed Links</span> for panel and log channels</li>
+            <li><span class="cmd-chip">Manage Roles</span> only if you want verification role assignment</li>
+            <li><span class="cmd-chip">View Audit Log</span> for cleaner moderation logging</li>
+          </ul>
+        </div>
+        <div class="release-card">
+          <div class="release-head">
+            <div>
+              <div class="release-name">User control rules</div>
+              <div class="release-meta">Recommended restrictions</div>
+            </div>
+            <span class="tag tag-blocked">Limit by default</span>
+          </div>
+          <ul>
+            <li>Only admins should be able to post or refresh the panel</li>
+            <li>Only the bot-control role or server owner should use Leave and Force Leave</li>
+            <li>Regular members should never be able to change log channels or verification setup</li>
+            <li>Keep utility actions visible, but keep configuration actions locked down</li>
+          </ul>
+        </div>
+      </div>
+      <div class="info-box">If you want the strictest setup, give panel/setup commands to admins only, use a dedicated bot-control role for voice controls, and let everyone else use only the public info buttons.</div>
+    </div>
+  </div>
+
+  <div class="status-legend">
+    <span class="tag tag-done">Done</span>
+    <span class="tag tag-progress">In progress</span>
+    <span class="tag tag-blocked">Blocked</span>
+    <span class="tag tag-wip">Needs validation</span>
+  </div>
+
+  <div class="phase-label">
+    <div class="phase-pill" style="background:rgba(78,207,133,0.12);color:var(--ok);border:1px solid rgba(78,207,133,0.25)">Live now</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="card open" id="impl1">
+    <div class="card-header" onclick="toggle('impl1')">
+      <span class="card-num">01</span><span class="card-icon">🔊</span>
+      <div class="card-title-block">
+        <div class="card-title">24/7 POW Bot voice connection system</div>        <div class="card-subtitle">Joins a voice channel and maintains the connection with silent audio and recovery logic</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done">Voice join, leave, and force leave flows are wired into the control panel and slash commands</li>
+        <li class="done">Ghost detection and auto-rejoin are handled by the heartbeat system</li>
+        <li class="done">A silent audio player keeps Discord from dropping the connection</li>
+        <li class="done">The bot restores the last known channel after restart when the host keeps state intact</li>
+        <li class="done">Connection state is tracked centrally so panel actions and startup recovery stay in sync</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl2">
+    <div class="card-header" onclick="toggle('impl2')">
+      <span class="card-num">02</span><span class="card-icon">🧠</span>
+      <div class="card-title-block">
+        <div class="card-title">Control panel and runtime status</div>        <div class="card-subtitle">Panel with controls for join, leave, refresh, user lookup, and profile views</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done">The panel is posted with <span class="cmd-chip">/panel</span> and updates automatically</li>
+        <li class="done">Buttons support Join, Leave, Force Leave, My Info, Lookup User, and Refresh</li>
+        <li class="done">Presence updates advertise the current channel and uptime for the bot</li>
+        <li class="done">The panel is branded for 24/7 POW Bot so admins immediately know what they are controlling</li>
+        <li class="done">The same panel state is used by the join and leave flows to avoid duplicate or stale controls</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl3">
+    <div class="card-header" onclick="toggle('impl3')">
+      <span class="card-num">03</span><span class="card-icon">📊</span>
+      <div class="card-title-block">
+        <div class="card-title">Voice and member tracking</div>
+        <div class="card-subtitle">Tracks VC sessions, member activity, and server stats in SQLite</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done">VC session timestamps are stored and used for per-user stats and streaks</li>
+        <li class="done">The status command reports connection info, uptime, reconnect count, active VC count, and session totals</li>
+        <li class="done">Member profile embeds show account age, voice state, roles, and tracked VC history</li>
+        <li class="done">The database layer keeps session records separate from guild config so stats and settings do not collide</li>
+        <li class="done">Join and leave tracking continues across restarts when data files remain available</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl4">
+    <div class="card-header" onclick="toggle('impl4')">
+      <span class="card-num">04</span><span class="card-icon">📝</span>
+      <div class="card-title-block">
+        <div class="card-title">Logging system</div>
+        <div class="card-subtitle">Voice logs, message delete/edit logs, and member join/leave logs are all wired up</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done">Voice activity logs cover joins, leaves, channel moves, mutes, deafens, streams, and camera events</li>
+        <li class="done">Message delete and edit logs can post to a configured channel</li>
+        <li class="done">Member join and leave logs include account age, member count, and role information when available</li>
+        <li class="done">Each log path is routed through guild-specific configuration so servers can opt into only the events they want</li>
+        <li class="done">The logging style stays consistent with the rest of the bot instead of feeling like a separate add-on</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl5">
+    <div class="card-header" onclick="toggle('impl5')">
+      <span class="card-num">05</span><span class="card-icon">✅</span>
+      <div class="card-title-block">
+        <div class="card-title">Verification and access controls</div>        <div class="card-subtitle">Admins can post a verification button and assign a role on click</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done"><span class="cmd-chip">/verify setup</span> posts a verification embed and button</li>
+        <li class="done">The chosen role is saved per guild and assigned to users who click the button</li>
+        <li class="done">The bot checks role hierarchy before assigning the role</li>
+        <li class="done">Verification messaging is branded to 24/7 POW Bot instead of sounding like generic Discord boilerplate</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl6">
+    <div class="card-header" onclick="toggle('impl6')">
+      <span class="card-num">06</span><span class="card-icon">📺</span>
+      <div class="card-title-block">
+        <div class="card-title">Streamer alerts</div>
+        <div class="card-subtitle">Kick, Twitch, and YouTube live notifications are supported with per-guild subscriptions</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done">Commands include <span class="cmd-chip">/addstreamer</span>, <span class="cmd-chip">/streamers</span>, and <span class="cmd-chip">/removestreamer</span></li>
+        <li class="done">Live alerts post to a configured channel and can ping a chosen role</li>
+        <li class="done">Twitch needs credentials, YouTube needs an API key, and Kick can still be affected by hosting IP restrictions</li>
+        <li class="done">Streamer subscriptions are stored per guild so different servers can maintain different alert lists</li>
+        <li class="done">The setup flow validates platform links before saving anything to the database</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="impl7">
+    <div class="card-header" onclick="toggle('impl7')">
+      <span class="card-num">07</span><span class="card-icon">🧰</span>
+      <div class="card-title-block">
+        <div class="card-title">Administration and utility commands</div>        <div class="card-subtitle">The bot now ships with a practical set of commands for maintenance and moderation</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-done">Implemented</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li class="done"><span class="cmd-chip">/setlogchannel</span> routes different log types to different channels</li>
+        <li class="done"><span class="cmd-chip">/setbotrole</span> controls who can use Leave and Force Leave from the panel</li>
+        <li class="done"><span class="cmd-chip">/purge</span> deletes batches of messages safely</li>
+        <li class="done"><span class="cmd-chip">/clearcommands</span> re-registers slash commands and clears stale ones</li>
+        <li class="done"><span class="cmd-chip">/help</span> gives a quick overview of the bot’s features</li>
+        <li class="done">The command set is intentionally practical rather than sprawling, which keeps the bot easier to maintain</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-label">
+    <div class="phase-pill" style="background:rgba(230,184,79,0.12);color:var(--warn);border:1px solid rgba(230,184,79,0.25)">Needs attention</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="card" id="polish1">
+    <div class="card-header" onclick="toggle('polish1')">
+      <span class="card-num">08</span><span class="card-icon">💾</span>
+      <div class="card-title-block">
+        <div class="card-title">Persistent config and database storage</div>
+        <div class="card-subtitle">Make sure config and panel state survive redeploys on Discloud without surprises</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-wip">Needs validation</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <p class="body-text">24/7 POW Bot stores guild configuration and SQLite data locally, but hosting environments can still reset or isolate those files depending on deployment conditions. This needs a real host-side verification pass.</p>
+      <ul class="checklist">
+        <li>Confirm the Discloud data directory is persistent across deploys and restarts</li>
+        <li>Verify the panel message ID survives a restart without needing to recreate the panel</li>
+        <li>Document the fallback path if the host wipes runtime data</li>
+        <li>Check which files are mounted as persistent storage versus temporary runtime files</li>
+        <li>Confirm the bot starts cleanly when config exists but the cached voice connection does not</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="polish2">
+    <div class="card-header" onclick="toggle('polish2')">
+      <span class="card-num">09</span><span class="card-icon">🔐</span>
+      <div class="card-title-block">
+        <div class="card-title">External API reliability</div>
+        <div class="card-subtitle">Twitch and YouTube checks are live, but they depend on correct credentials and provider-side access</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-wip">Needs polish</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Graceful fallback messaging should be clearer when Twitch credentials are missing or rejected</li>
+        <li>YouTube and Twitch checks should degrade cleanly when APIs rate-limit or return errors</li>
+        <li>Kick-specific failures should be documented and surfaced to admins more clearly</li>
+        <li>Live alert checks should fail closed instead of spamming broken notifications</li>
+        <li>Admins should be able to tell whether a failure is credential-related, rate-limit related, or platform-related</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="polish3">
+    <div class="card-header" onclick="toggle('polish3')">
+      <span class="card-num">10</span><span class="card-icon">⚙️</span>
+      <div class="card-title-block">
+        <div class="card-title">Startup and command registration reliability</div>
+        <div class="card-subtitle">The bot now starts cleanly, but command registration and host restarts should be monitored in production</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-wip">Needs polish</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Keep slash command registration stable across deploys and guild changes</li>
+        <li>Log any missing permissions or Discord-side registration issues more explicitly</li>
+        <li>Make the startup flow more resilient if one module or feature fails to initialize</li>
+        <li>Surface command registration problems in the logs before they become support issues</li>
+        <li>Keep the startup path predictable so the bot can recover after a restart without manual cleanup</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-label">
+    <div class="phase-pill" style="background:rgba(242,169,107,0.12);color:#f2a96b;border:1px solid rgba(242,169,107,0.25)">Next up</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="card" id="next1">
+    <div class="card-header" onclick="toggle('next1')">
+      <span class="card-num">11</span><span class="card-icon">🧭</span>
+      <div class="card-title-block">
+        <div class="card-title">Better onboarding and server setup</div>
+        <div class="card-subtitle">Guide new servers through setup with clearer defaults and fewer manual steps</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-high">High priority</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Add a guided setup flow for log channels, verification, and bot-control role configuration</li>
+        <li>Make the first-run experience more obvious in Discord instead of relying on admin memory</li>
+        <li>Offer a one-command setup helper for common bot configuration</li>
+        <li>Reduce the number of manual admin steps needed to get the core features online</li>
+        <li>Make the bot feel self-explanatory for new servers without needing external docs</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="next2">
+    <div class="card-header" onclick="toggle('next2')">
+      <span class="card-num">12</span><span class="card-icon">🛡️</span>
+      <div class="card-title-block">
+        <div class="card-title">Additional moderation utilities</div>        <div class="card-subtitle">Add a few quality-of-life commands that fit the current bot style</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-medium">Medium</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Utility commands like <span class="cmd-chip">/ping</span>, <span class="cmd-chip">/uptime</span>, and <span class="cmd-chip">/serverinfo</span></li>
+        <li>Extra moderation shortcuts such as soft bans, timed mutes, or warning history</li>
+        <li>More detailed audit logging for moderator actions when useful</li>
+        <li>Only add features that fit the bot’s core identity instead of drifting into unrelated bot territory</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="next3">
+    <div class="card-header" onclick="toggle('next3')">
+      <span class="card-num">13</span><span class="card-icon">👋</span>
+      <div class="card-title-block">
+        <div class="card-title">Welcome and leave messaging</div>
+        <div class="card-subtitle">Add configurable join/leave messages without overcomplicating the bot</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-medium">Medium</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Allow admins to configure a join and leave channel with custom text</li>
+        <li>Keep it lightweight and optional rather than turning the bot into a full community bot</li>
+        <li>Use the same premium branding language so these messages still feel like 24/7 POW Bot</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" id="next4">
+    <div class="card-header" onclick="toggle('next4')">
+      <span class="card-num">14</span><span class="card-icon">📦</span>
+      <div class="card-title-block">
+        <div class="card-title">Optional larger features</div>
+        <div class="card-subtitle">Only build these if the bot continues to grow beyond the core use case</div>
+      </div>
+      <div class="card-tags"><span class="tag tag-low">Later</span></div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <ul class="checklist">
+        <li>Game alerts or patch-note notifications</li>
+        <li>Music bot features such as queueing and playback control</li>
+        <li>A web dashboard or simple management panel</li>
+        <li>These ideas stay intentionally secondary until the voice uptime and server tools are rock solid</li>
+      </ul>
+      <div class="info-box">These are good ideas, but they should stay after the core 24/7 voice bot and server tools are fully stable.</div>
+    </div>
+  </div>
+
+  <div class="phase-label">
+    <div class="phase-pill" style="background:rgba(255,255,255,0.05);color:#9ca3af;border:1px solid var(--border)">Summary</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="card open" id="summary">
+    <div class="card-header" onclick="toggle('summary')">
+      <span class="card-num">—</span><span class="card-icon">🗺️</span>
+      <div class="card-title-block">
+        <div class="card-title">Release plan</div>
+        <div class="card-subtitle">Clean milestones for the next shipping cycles</div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="card-body">
+      <p class="body-text">This roadmap is organized around shipping cycles instead of a loose task pile. That keeps 24/7 POW Bot moving in small, shippable steps while still separating completed work from active risks and intentionally deferred work.</p>
+      <div class="release-grid">
+        <div class="release-card">
+          <div class="release-head">
+            <div>
+              <div class="release-name">Release 1.0</div>
+              <div class="release-meta">Done</div>
+            </div>
+            <span class="tag tag-done">Shipped</span>
+          </div>
+          <ul>
+            <li>24/7 voice uptime core</li>
+            <li>Control panel and status views</li>
+            <li>Voice, member, and message logging</li>
+            <li>Verification and streamer alerts</li>
+          </ul>
+        </div>
+        <div class="release-card">
+          <div class="release-head">
+            <div>
+              <div class="release-name">Release 1.1</div>
+              <div class="release-meta">In progress</div>
+            </div>
+            <span class="tag tag-progress">Active</span>
+          </div>
+          <ul>
+            <li>Host-side persistence validation</li>
+            <li>Cleaner startup and registration diagnostics</li>
+            <li>Better fallback messaging for Twitch, YouTube, and Kick</li>
+            <li>Sharper onboarding flow for new servers</li>
+          </ul>
+        </div>
+        <div class="release-card">
+          <div class="release-head">
+            <div>
+              <div class="release-name">Release 1.2+</div>
+              <div class="release-meta">Blocked or later</div>
+            </div>
+            <span class="tag tag-blocked">Deferred</span>
+          </div>
+          <ul>
+            <li>Only add new utilities if they match the bot’s core identity</li>
+            <li>Hold larger feature expansion until stability is proven</li>
+            <li>Treat dashboard or music features as optional future work</li>
+          </ul>
+        </div>
+      </div>
+      <table class="summary-table" style="margin-top:14px">
+        <tr><th>Work item</th><th>Status</th><th>Meaning</th></tr>
+        <tr><td>Persistence checks</td><td><span class="tag tag-progress">In progress</span></td><td>We still need a real host-side verification pass</td></tr>
+        <tr><td>External API reliability</td><td><span class="tag tag-progress">In progress</span></td><td>Twitch and YouTube behavior still needs tighter failure handling</td></tr>
+        <tr><td>Scope expansion</td><td><span class="tag tag-blocked">Blocked</span></td><td>New features stay on hold until the core bot is fully stable</td></tr>
+      </table>
+      <div class="info-box">Done means already live in the workspace, in progress means actively being refined or validated, and blocked means intentionally deferred until a dependency or stability goal is met.</div>
+    </div>
+  </div>
+</main>
+
+<footer>247 POW Bot Roadmap · Updated July 7, 2026 at 5:11 AM</footer>
+
+<script>
+  function toggle(id) {
+    const card = document.getElementById(id);
+    if (card) card.classList.toggle('open');
+  }
+</script>
+</body>
+</html>
