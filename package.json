@@ -7,9 +7,12 @@
     "start": "node index.js",
     "deploy": "node deploy-commands.js"
   },
+  "overrides": {
+    "undici": "6.27.0"
+  },
   "dependencies": {
     "@discordjs/voice": "0.16.1",
-    "discord.js": "^14.26.3",
+    "discord.js": "^14.26.4",
     "dotenv": "16.3.1",
     "libsodium-wrappers": "^0.7.13",
     "opusscript": "^0.1.1",
