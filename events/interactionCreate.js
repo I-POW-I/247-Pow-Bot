@@ -11,6 +11,7 @@ const { setLastChannel, clearLastChannel, setStats, getVerifyRoleId, getBotContr
 const { attachSilencePlayer, stopSilencePlayer } = require('../src/audioPlayer');
 const { run, selectOne }          = require('../src/database');
 const { joinTimes }               = require('../src/memberTracker');
+const { checkCooldown }           = require('../src/cooldown');
 
 const HEALTHY = [
   VoiceConnectionStatus.Ready,
@@ -140,6 +141,15 @@ module.exports = {
     }
 
     if (!interaction.isButton()) return;
+
+    // ── Per-user button cooldown ──────────────────────────────────────────────
+    const remaining = checkCooldown(interaction.user.id, interaction.customId);
+    if (remaining) {
+      return interaction.reply({
+        content: `⏱️ Please wait **${remaining}s** before using that again.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
 
     const { guild, member } = interaction;
     const isAdmin = member.permissions.has(PermissionFlagsBits.ManageGuild);

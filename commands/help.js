@@ -11,10 +11,11 @@ module.exports = {
       .setDescription('24/7 POW Bot keeps voice uptime stable, manages server activity logs, handles verification, and delivers streamer alerts.')
       .setColor(0x7b8cff)
       .addFields(
-        { name: 'Core Commands', value: '`/panel`, `/status`, `/setlogchannel`, `/verify setup`', inline: false },
-        { name: 'Admin Tools', value: '`/setbotrole`, `/purge`, `/clearcommands`', inline: false },
-        { name: 'Streamer Alerts', value: '`/addstreamer`, `/streamers`, `/removestreamer`', inline: false },
-        { name: 'Panel Controls', value: 'Use the buttons on the control panel for Join, Leave, My Info, Lookup, and Refresh.', inline: false },
+        { name: 'Core',           value: '`/panel`, `/status`, `/ping`, `/serverinfo`, `/help`',             inline: false },
+        { name: 'Configuration',  value: '`/setlogchannel`, `/setbotrole`, `/verify setup`',                 inline: false },
+        { name: 'Moderation',     value: '`/purge`, `/clearcommands`',                                       inline: false },
+        { name: 'Streamer Alerts', value: '`/addstreamer`, `/streamers`, `/removestreamer`',                 inline: false },
+        { name: 'Panel Controls', value: 'Join · Leave · Force Leave · My Info · Lookup · Refresh',          inline: false },
       )
       .setFooter({ text: '24/7 POW Bot • Server management suite' });
 

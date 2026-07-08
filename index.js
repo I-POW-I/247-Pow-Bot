@@ -27,7 +27,29 @@ main().catch((error) => {
   process.exit(1);
 });
 
-// Catch unhandled errors so the bot doesn't silently die
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+async function shutdown(signal) {
+  log('INFO', `${signal} received — shutting down 24/7 POW Bot cleanly`);
+  try {
+    const { getVoiceConnection } = require('@discordjs/voice');
+    const { stopSilencePlayer }  = require('./src/audioPlayer');
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        stopSilencePlayer(guild.id);
+        const conn = getVoiceConnection(guild.id);
+        if (conn) conn.destroy();
+      } catch (_) {}
+    }
+    client.destroy();
+  } catch (_) {}
+  log('INFO', '24/7 POW Bot shut down cleanly');
+  process.exit(0);
+}
+
+process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// ── Catch unhandled errors so the bot doesn't silently die ───────────────────
 process.on('unhandledRejection', (error) => {
   log('ERROR', 'Unhandled promise rejection', { message: error.message });
 });
