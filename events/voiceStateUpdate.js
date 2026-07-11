@@ -147,7 +147,7 @@ module.exports = {
     if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
       endSession(member.user.id, guild.id);
       startSession(member.user.id, guild.id, newChannel.id, newChannel.name);
-      joinTimes.set(key, Date.now());
+      // Do NOT reset joinTimes — keep original so duration on leave shows total VC time
 
       const movedBy = await getMoveMod(guild, newChannel.id);
 
