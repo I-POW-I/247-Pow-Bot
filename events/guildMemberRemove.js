@@ -1,11 +1,16 @@
 /**
- * Logs when a member leaves or is kicked from the server.
- * Checks audit log to distinguish kicks from voluntary leaves.
+ * Fires when a member leaves or is removed from the server.
+ *
+ * Does two things:
+ *   1. Posts a leave image card to the configured welcome/leave channel
+ *   2. Posts an admin log embed to the members log channel showing
+ *      who left, how long they were here, their roles, and if they were kicked
  */
 
-const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
-const { log }           = require('../src/logger');
-const { getLogChannel } = require('../src/guildConfig');
+const { Events, EmbedBuilder, AuditLogEvent, AttachmentBuilder } = require('discord.js');
+const { log }            = require('../src/logger');
+const { getLogChannel, getGuildConfig } = require('../src/guildConfig');
+const { generateCard }   = require('../src/imageGenerator');
 
 async function getKicker(guild, userId, windowMs = 5000) {
   try {
@@ -15,9 +20,8 @@ async function getKicker(guild, userId, windowMs = 5000) {
     );
     if (!entry) return null;
     return {
-      tag:    entry.executor.tag,
       mention: `${entry.executor} — ${entry.executor.tag}`,
-      reason: entry.reason || 'No reason provided',
+      reason:  entry.reason || 'No reason provided',
     };
   } catch { return null; }
 }
@@ -27,66 +31,79 @@ module.exports = {
   once: false,
 
   async execute(member) {
-    const guild     = member.guild;
-    const channelId = getLogChannel(guild.id, 'members');
-    if (!channelId) return;
+    const { guild } = member;
+    const config    = getGuildConfig(guild.id);
 
-    let logChannel;
+    const kick = await getKicker(guild, member.id);
+
+    // ── 1. Leave image card ────────────────────────────────────────────────────
+    const leaveChannelId = config.leaveChannelId || config.welcomeChannelId;
+    if (leaveChannelId) {
+      try {
+        const channel     = await guild.channels.fetch(leaveChannelId);
+        if (channel?.isTextBased()) {
+          const displayName = member.displayName || member.user.username;
+          const avatarUrl   = member.user.displayAvatarURL({ dynamic: false, size: 512 });
+          const buffer      = await generateCard('leave', displayName, avatarUrl, guild.memberCount);
+          await channel.send({ files: [new AttachmentBuilder(buffer, { name: 'leave.png' })] });
+        }
+      } catch (err) {
+        log('WARN', 'Failed to send leave card', { guild: guild.name, error: err.message });
+      }
+    }
+
+    // ── 2. Admin log embed ─────────────────────────────────────────────────────
+    const logChannelId = getLogChannel(guild.id, 'members');
+    if (!logChannelId) return;
+
     try {
-      logChannel = await guild.channels.fetch(channelId);
+      const logChannel = await guild.channels.fetch(logChannelId);
       if (!logChannel?.isTextBased()) return;
-    } catch { return; }
 
-    const user    = member.user;
-    const kick    = await getKicker(guild, user.id);
-    const joinedAt = member.joinedAt;
-    const timeInServer = joinedAt
-      ? (() => {
-          const ms  = Date.now() - joinedAt.getTime();
-          const d   = Math.floor(ms / 86400000);
-          const h   = Math.floor((ms % 86400000) / 3600000);
-          if (d > 0) return `${d}d ${h}h`;
-          return `${h}h`;
-        })()
-      : 'Unknown';
+      const user     = member.user;
+      const joinedAt = member.joinedAt;
+      const timeInServer = joinedAt ? (() => {
+        const diff = Date.now() - joinedAt.getTime();
+        const d    = Math.floor(diff / 86400000);
+        const h    = Math.floor((diff % 86400000) / 3600000);
+        return d > 0 ? `${d}d ${h}h` : `${h}h`;
+      })() : 'Unknown';
 
-    // Top roles (exclude @everyone, max 5)
-    const roles = member.roles?.cache
-      .filter(r => r.id !== guild.id)
-      .sort((a, b) => b.position - a.position)
-      .first(5)
-      .map(r => `<@&${r.id}>`);
+      const roles = member.roles?.cache
+        .filter(r => r.id !== guild.id)
+        .sort((a, b) => b.position - a.position)
+        .first(5)
+        .map(r => `<@&${r.id}>`);
 
-    const embed = new EmbedBuilder()
-      .setColor(kick ? 0xFF7043 : 0xED4245)
-      .setTitle(kick ? '👢  Member Kicked' : '📤  Member Left')
-      .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
-      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-      .addFields(
-        { name: 'Member',         value: `${user} — ${user.tag}`, inline: false },
-        { name: 'Time in Server', value: timeInServer,             inline: true  },
-        { name: 'Member Count',   value: `${guild.memberCount}`,   inline: true  },
-        { name: '\u200b',         value: '\u200b',                 inline: true  },
-      )
-      .setTimestamp()
-      .setFooter({ text: `User ID: ${user.id}` });
+      const embed = new EmbedBuilder()
+        .setColor(kick ? 0xFF7043 : 0xED4245)
+        .setTitle(kick ? '👢  Member Kicked' : '📤  Member Left')
+        .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
+        .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
+        .addFields(
+          { name: 'Member',         value: `${user} — ${user.tag}`, inline: false },
+          { name: 'Time in Server', value: timeInServer,             inline: true  },
+          { name: 'Member Count',   value: `${guild.memberCount}`,   inline: true  },
+          { name: '\u200b',         value: '\u200b',                 inline: true  },
+        )
+        .setTimestamp()
+        .setFooter({ text: `User ID: ${user.id}` });
 
-    if (kick) {
-      embed.addFields(
-        { name: 'Kicked By', value: kick.mention, inline: true },
-        { name: 'Reason',    value: kick.reason,  inline: true },
-        { name: '\u200b',    value: '\u200b',      inline: true },
-      );
-    }
+      if (kick) {
+        embed.addFields(
+          { name: 'Kicked By', value: kick.mention, inline: true  },
+          { name: 'Reason',    value: kick.reason,  inline: false },
+        );
+      }
 
-    if (roles?.length > 0) {
-      embed.addFields({ name: 'Roles', value: roles.join(' '), inline: false });
-    }
+      if (roles?.length > 0) {
+        embed.addFields({ name: 'Roles', value: roles.join(' '), inline: false });
+      }
 
-    try {
       await logChannel.send({ embeds: [embed] });
+
     } catch (err) {
-      log('ERROR', 'Failed to send member remove log', { guild: guild.name, error: err.message });
+      log('WARN', 'Failed to send member leave log', { guild: guild.name, error: err.message });
     }
   },
 };
