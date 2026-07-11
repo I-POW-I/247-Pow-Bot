@@ -66,25 +66,7 @@ async function generateCard(type, displayName, avatarUrl, memberCount) {
     ctx.drawImage(img, AVATAR_X - AVATAR_R, AVATAR_Y - AVATAR_R, AVATAR_R * 2, AVATAR_R * 2);
     ctx.restore();
 
-    // Greyscale tint for leave card
-    if (isLeave) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'saturation';
-      ctx.fillStyle = 'hsl(0, 0%, 30%)';
-      ctx.beginPath();
-      ctx.arc(AVATAR_X, AVATAR_Y, AVATAR_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
 
-      // Dark overlay for leave
-      ctx.save();
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.fillStyle = 'rgba(60,60,60,0.4)';
-      ctx.beginPath();
-      ctx.arc(AVATAR_X, AVATAR_Y, AVATAR_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
 
   } catch {
     // Fallback: plain coloured circle if avatar fails to load
