@@ -64,7 +64,7 @@ function buildRotationSlots(client) {
   const totalMembers = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
   slots.push({
     name:          `${totalMembers.toLocaleString()} members`,
-    discordStatus: 'online',
+    discordStatus: 'dnd',
     type:          ActivityType.Watching,
   });
   return slots;
