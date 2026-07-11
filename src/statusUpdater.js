@@ -1,5 +1,5 @@
 const {
-  ActivityType, EmbedBuilder,
+  ActivityType, EmbedBuilder, PermissionsBitField,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
   ChannelType, ChannelSelectMenuBuilder, UserSelectMenuBuilder,
 } = require('discord.js');
@@ -10,7 +10,9 @@ const { getGuildConfig, getStats, getLogChannel } = require('./guildConfig');
 const { getUserStats, getServerTotals, formatMs }  = require('./database');
 const { joinTimes, streamTimes }           = require('./memberTracker');
 
-const PRESENCE_INTERVAL = 60 * 1000;
+const PRESENCE_INTERVAL  = 60 * 1000;
+const ROTATION_INTERVAL  = 30 * 1000;
+let rotationIndex = 0;
 
 const HEALTHY = [
   VoiceConnectionStatus.Ready,
@@ -46,25 +48,42 @@ function formatLive(ms) {
 
 // ── Presence ──────────────────────────────────────────────────────────────────
 
-function buildPresence() {
+function buildRotationSlots(client) {
   const active = store.getAllEntries().filter(([guildId]) => isConnected(guildId));
-  if (active.length === 0) return { name: 'Sleeping...', status: 'idle' };
-  if (active.length === 1) {
-    const [, meta] = active[0];
-    return { name: `🔊 ${meta.channelName} · ${store.formatUptime(meta.joinedAt)}`, status: 'online' };
+  if (active.length === 0) {
+    return [{ name: 'Sleeping...', discordStatus: 'idle', type: ActivityType.Custom }];
   }
-  return { name: `🔊 ${active.length} channels`, status: 'online' };
+  const slots = [];
+  for (const [, meta] of active) {
+    slots.push({
+      name:          `🔊 ${meta.channelName} · ${store.formatUptime(meta.joinedAt)}`,
+      discordStatus: 'online',
+      type:          ActivityType.Custom,
+    });
+  }
+  const totalMembers = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
+  slots.push({
+    name:          `${totalMembers.toLocaleString()} members`,
+    discordStatus: 'online',
+    type:          ActivityType.Watching,
+  });
+  return slots;
 }
 
 function startStatusUpdater(client) {
-  const update = async () => {
-    const { name, status } = buildPresence();
-    client.user.setPresence({ status, activities: [{ name, type: ActivityType.Custom }] });
-    await updatePanel(client);
+  const rotate = () => {
+    const slots = buildRotationSlots(client);
+    rotationIndex = rotationIndex % slots.length;
+    const slot = slots[rotationIndex];
+    client.user.setPresence({ status: slot.discordStatus, activities: [{ name: slot.name, type: slot.type }] });
+    rotationIndex++;
   };
-  update();
-  setInterval(update, PRESENCE_INTERVAL);
-  log('INFO', 'Presence updater started (60s interval)');
+  rotate();
+  setInterval(rotate, ROTATION_INTERVAL);
+  const panelUpdate = async () => { await updatePanel(client); };
+  panelUpdate();
+  setInterval(panelUpdate, PRESENCE_INTERVAL);
+  log('INFO', 'Status updater started (30s rotation · 60s panel)');
 }
 
 // ── Panel embed ───────────────────────────────────────────────────────────────
@@ -188,9 +207,52 @@ function buildStatsEmbed(guildId, client) {
 
 // ── Member profile embed ──────────────────────────────────────────────────────
 
+const KEY_PERMS = [
+  ['Administrator',     '👑 Administrator'],
+  ['ManageGuild',       '⚙️ Manage Server'],
+  ['ManageChannels',    '📁 Manage Channels'],
+  ['ManageRoles',       '🏷️ Manage Roles'],
+  ['ManageMessages',    '🗑️ Manage Messages'],
+  ['ModerateMembers',   '⏱️ Timeout Members'],
+  ['KickMembers',       '👢 Kick Members'],
+  ['BanMembers',        '🔨 Ban Members'],
+  ['ViewAuditLog',      '📋 View Audit Log'],
+];
+
 function buildMemberEmbed(member, guild) {
   const user    = member.user;
   const stats   = getUserStats(user.id, guild.id);
+
+  // ── Warning count ─────────────────────────────────────────────────────────
+  let warnCount = 0;
+  try {
+    const { selectAll } = require('./database');
+    warnCount = selectAll('SELECT id FROM warnings WHERE guild_id = ? AND user_id = ?', [guild.id, user.id]).length;
+  } catch {}
+
+  // ── Time in server ────────────────────────────────────────────────────────
+  let timeInServer = null;
+  if (member.joinedAt) {
+    const diff = Date.now() - member.joinedTimestamp;
+    const d    = Math.floor(diff / 86400000);
+    const h    = Math.floor((diff % 86400000) / 3600000);
+    timeInServer = d > 0 ? `${d}d ${h}h` : `${h}h`;
+  }
+
+  // ── Timeout status ────────────────────────────────────────────────────────
+  const timedOut = member.communicationDisabledUntil && member.communicationDisabledUntil > new Date();
+
+  // ── Key permissions ───────────────────────────────────────────────────────
+  let permStr = null;
+  try {
+    const perms = member.permissions;
+    if (perms.has(PermissionsBitField.Flags.Administrator)) {
+      permStr = '👑 Administrator';
+    } else {
+      const has = KEY_PERMS.filter(([f]) => perms.has(PermissionsBitField.Flags[f])).map(([,l]) => l);
+      if (has.length > 0) permStr = has.join(', ');
+    }
+  } catch {}
 
   // ── Account age ──────────────────────────────────────────────────────────
   const ageMs     = Date.now() - user.createdAt.getTime();
@@ -260,19 +322,30 @@ function buildMemberEmbed(member, guild) {
     .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
     .setTitle('👤  Member Profile')
     .addFields(
-      { name: 'Joined Server',   value: `<t:${Math.floor(member.joinedAt.getTime() / 1000)}:R>`, inline: true },
-      { name: 'Account Created', value: `<t:${Math.floor(user.createdAt.getTime() / 1000)}:R>`,  inline: true },
-      { name: 'Account Age',     value: ageStr,                                                    inline: true },
+      { name: 'Joined Server',  value: `<t:${Math.floor(member.joinedAt.getTime() / 1000)}:D>\n<t:${Math.floor(member.joinedAt.getTime() / 1000)}:R>`, inline: true },
+      { name: 'Account Created', value: `<t:${Math.floor(user.createdAt.getTime() / 1000)}:D>\n<t:${Math.floor(user.createdAt.getTime() / 1000)}:R>`, inline: true },
+      { name: 'Account Age',    value: ageStr, inline: true },
     );
+
+  if (timeInServer) {
+    embed.addFields({ name: 'Time in Server', value: timeInServer, inline: true });
+  }
 
   if (nickname) {
     embed.addFields({ name: 'Nickname', value: nickname, inline: true });
   }
 
-  embed.addFields(
-    { name: 'Boost Status', value: boostStr, inline: false },
-    { name: 'In Voice',     value: vcLine,   inline: false },
-  );
+  embed.addFields({ name: 'Boost Status', value: boostStr, inline: false });
+
+  if (timedOut) {
+    embed.addFields({ name: '⏱️ Timed Out', value: `Until <t:${Math.floor(member.communicationDisabledUntilTimestamp / 1000)}:R>`, inline: true });
+  }
+
+  if (warnCount > 0) {
+    embed.addFields({ name: '⚠️ Warnings', value: `${warnCount}`, inline: true });
+  }
+
+  embed.addFields({ name: 'In Voice', value: vcLine, inline: false });
 
   // ── VC Stats (from SQLite) ────────────────────────────────────────────────
   if (stats.session_count > 0) {
@@ -393,7 +466,6 @@ module.exports = {
   updatePanel,
   buildPanelEmbed,
   buildPanelButtons,
-  buildStatsEmbed,
   buildMemberEmbed,
   buildChannelSelectRow,
   buildUserSelectRow,
