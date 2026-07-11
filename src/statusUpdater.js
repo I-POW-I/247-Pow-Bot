@@ -223,12 +223,7 @@ function buildMemberEmbed(member, guild) {
   const user    = member.user;
   const stats   = getUserStats(user.id, guild.id);
 
-  // ── Warning count ─────────────────────────────────────────────────────────
-  let warnCount = 0;
-  try {
-    const { selectAll } = require('./database');
-    warnCount = selectAll('SELECT id FROM warnings WHERE guild_id = ? AND user_id = ?', [guild.id, user.id]).length;
-  } catch {}
+
 
   // ── Time in server ────────────────────────────────────────────────────────
   let timeInServer = null;
@@ -341,9 +336,7 @@ function buildMemberEmbed(member, guild) {
     embed.addFields({ name: '⏱️ Timed Out', value: `Until <t:${Math.floor(member.communicationDisabledUntilTimestamp / 1000)}:R>`, inline: true });
   }
 
-  if (warnCount > 0) {
-    embed.addFields({ name: '⚠️ Warnings', value: `${warnCount}`, inline: true });
-  }
+
 
   embed.addFields({ name: 'In Voice', value: vcLine, inline: false });
 
