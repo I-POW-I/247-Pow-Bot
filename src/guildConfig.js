@@ -89,10 +89,20 @@ function getVerifyRoleId(guildId) {
   return getGuildConfig(guildId).verifyRoleId || null;
 }
 
+
+/**
+ * Get the role ID allowed to use Leave and Force Leave buttons.
+ * Returns null if not set — falls back to server owner.
+ */
+function getBotControlRoleId(guildId) {
+  return getGuildConfig(guildId).botControlRoleId || null;
+}
+
 module.exports = {
   getGuildConfig,  setGuildConfig,
   getLogChannel,   setLogChannel,
   setLastChannel,  clearLastChannel,
   setStats,        getStats,
   getVerifyRoleId,
+  getBotControlRoleId,
 };
