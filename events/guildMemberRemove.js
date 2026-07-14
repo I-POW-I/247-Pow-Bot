@@ -77,7 +77,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(kick ? 0xFF7043 : 0xED4245)
-        .setTitle(kick ? '👢  Member Kicked' : '📤  Member Left')
+        .setTitle(kick ? 'Member Kicked' : 'Member Left')
         .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
         .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
         .addFields(
