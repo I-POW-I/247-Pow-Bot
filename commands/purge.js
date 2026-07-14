@@ -41,7 +41,7 @@ module.exports = {
       }
 
       // ── Reply immediately so the user knows what's happening ───────────────
-      let replyContent = `🗑️ Deleted **${bulkDeleted}** recent message(s).`;
+      let replyContent = `Deleted **${bulkDeleted}** recent message(s).`;
       if (old.size > 0) {
         replyContent += `\n⏳ **${old.size}** message(s) are older than 14 days — deleting individually in the background...`;
       }
@@ -62,7 +62,7 @@ module.exports = {
 
         // Update the reply once old deletions are done
         await interaction.editReply({
-          content: `🗑️ Done — deleted **${bulkDeleted + oldDeleted}** message(s) total.\n*(${bulkDeleted} bulk · ${oldDeleted} individual)*`,
+          content: `Done — deleted **${bulkDeleted + oldDeleted}** message(s) total.\n*(${bulkDeleted} bulk · ${oldDeleted} individual)*`,
         });
       }
 
@@ -101,7 +101,7 @@ module.exports = {
               embeds: [
                 new EmbedBuilder()
                   .setColor(0xFF7043)
-                  .setTitle('🗑️  Channel Purged')
+                  .setTitle('Channel Purged')
                   .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
                   .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
                   .addFields(fields)
