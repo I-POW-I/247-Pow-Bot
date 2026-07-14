@@ -129,7 +129,7 @@ function buildPanelEmbed(guildId, guild = null) {
   }
 
   return new EmbedBuilder()
-    .setTitle('🖤 24/7 POW Bot')
+    .setTitle('24/7 POW Bot 🖤')
     .setColor(colour)
     .addFields(
       { name: 'Status',      value: statusLine,  inline: true },
@@ -158,7 +158,7 @@ function buildStatsEmbed(guildId, client) {
   const statusLabel = connected ? '🟢 Connected' : '🔴 Not connected';
 
   const embed = new EmbedBuilder()
-    .setTitle('🖤 24/7 POW Bot — Status')
+    .setTitle('24/7 POW Bot 🖤 — Status')
     .setColor(connected ? 0x57F287 : 0xED4245)
     .setTimestamp();
 
@@ -205,15 +205,15 @@ function buildStatsEmbed(guildId, client) {
 // ── Member profile embed ──────────────────────────────────────────────────────
 
 const KEY_PERMS = [
-  ['Administrator',     '👑 Administrator'],
-  ['ManageGuild',       '⚙️ Manage Server'],
-  ['ManageChannels',    '📁 Manage Channels'],
-  ['ManageRoles',       '🏷️ Manage Roles'],
-  ['ManageMessages',    '🗑️ Manage Messages'],
-  ['ModerateMembers',   '⏱️ Timeout Members'],
-  ['KickMembers',       '👢 Kick Members'],
-  ['BanMembers',        '🔨 Ban Members'],
-  ['ViewAuditLog',      '📋 View Audit Log'],
+  ['Administrator',     'Administrator'],
+  ['ManageGuild',       'Manage Server'],
+  ['ManageChannels',    'Manage Channels'],
+  ['ManageRoles',       'Manage Roles'],
+  ['ManageMessages',    'Manage Messages'],
+  ['ModerateMembers',   'Timeout Members'],
+  ['KickMembers',       'Kick Members'],
+  ['BanMembers',        'Ban Members'],
+  ['ViewAuditLog',      'View Audit Log'],
 ];
 
 function buildMemberEmbed(member, guild) {
@@ -239,7 +239,7 @@ function buildMemberEmbed(member, guild) {
   try {
     const perms = member.permissions;
     if (perms.has(PermissionsBitField.Flags.Administrator)) {
-      permStr = '👑 Administrator';
+      permStr = 'Administrator';
     } else {
       const has = KEY_PERMS.filter(([f]) => perms.has(PermissionsBitField.Flags[f])).map(([,l]) => l);
       if (has.length > 0) permStr = has.join(', ');
@@ -337,7 +337,7 @@ function buildMemberEmbed(member, guild) {
 
   embed.addFields({ name: 'In Voice', value: vcLine, inline: false });
 
-  // ── VC Stats (from SQLite) ────────────────────────────────────────────────
+  // ── VC Stats (from database) ────────────────────────────────────────────────
   if (stats.session_count > 0) {
     embed.addFields(
       { name: 'Total VC Time',   value: formatMs(stats.total_ms),                              inline: true },
@@ -372,19 +372,19 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_join')
       .setLabel('Join')
-      .setEmoji('🔊')
+      .setEmoji('')
       .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
       .setCustomId('bot_leave')
       .setLabel('Leave')
-      .setEmoji('👋')
+      .setEmoji('')
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
       .setLabel('Leave & Reset')
-      .setEmoji('🔌')
+      .setEmoji('')
       .setStyle(ButtonStyle.Danger),
   );
 
@@ -392,19 +392,19 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_myinfo')
       .setLabel('My Info')
-      .setEmoji('👤')
+      .setEmoji('')
       .setStyle(ButtonStyle.Primary),
 
     new ButtonBuilder()
       .setCustomId('bot_lookup')
       .setLabel('User Lookup')
-      .setEmoji('🔍')
+      .setEmoji('')
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
       .setCustomId('bot_refresh')
       .setLabel('Panel Refresh')
-      .setEmoji('🔄')
+      .setEmoji('')
       .setStyle(ButtonStyle.Secondary),
   );
 
