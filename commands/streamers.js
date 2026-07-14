@@ -7,7 +7,7 @@ const NAMES = { kick: 'Kick', twitch: 'Twitch', youtube: 'YouTube' };
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('streamers')
-    .setDescription('List all streamers being watched in this server'),
+    .setDescription('Show all streamers setup for gone-live notifications'),
 
   async execute(interaction) {
     const { guild } = interaction;
@@ -19,7 +19,7 @@ module.exports = {
 
     if (subs.length === 0) {
       return interaction.reply({
-        content: '📭 No streamers are being watched. Use `/addstreamer` to add one.',
+        content: 'No streamer notifications currently setup. Use `/addstreamer` to add one.',
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -30,7 +30,7 @@ module.exports = {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('📡 Watched Streamers')
+      .setTitle('Watched Streamers')
       .setColor(0x5865F2)
       .setFooter({ text: `${subs.length} streamer(s) total` })
       .setTimestamp();
