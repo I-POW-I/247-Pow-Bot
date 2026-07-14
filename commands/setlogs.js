@@ -57,7 +57,7 @@ module.exports = {
       embeds: [
         new EmbedBuilder()
           .setColor(updated.length > 0 ? 0x57F287 : 0x5865F2)
-          .setTitle(updated.length > 0 ? '✅ Log Channels Updated' : '📋 Log Channel Config')
+          .setTitle(updated.length > 0 ? 'Log Channels Updated' : 'Log Channel Config')
           .addFields(fields)
           .setTimestamp()
           .setFooter({ text: updated.length > 0 ? `${updated.length} channel(s) updated` : 'Use /setlogs with channel options to configure' }),
