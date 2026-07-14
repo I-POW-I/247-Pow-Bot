@@ -9,6 +9,7 @@ const { attachSilencePlayer }                      = require('../src/audioPlayer
 const { initGuild }                                = require('../src/memberTracker');
 const { init: initDatabase }                       = require('../src/database');
 const { startStreamerPoller }                      = require('../src/streamerPoller');
+const { startGamePoller }                          = require('../src/gamePoller');
 
 module.exports = {
   name: Events.ClientReady,
@@ -91,6 +92,7 @@ module.exports = {
     startHeartbeat(client);
     startStatusUpdater(client);
     startStreamerPoller(client);
+    startGamePoller(client);
     await updatePanel(client);
 
     log('INFO', 'Bot fully ready');
