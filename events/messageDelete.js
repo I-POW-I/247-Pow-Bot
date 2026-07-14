@@ -62,7 +62,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0xED4245)
-      .setTitle('🗑️  Message Deleted')
+      .setTitle('Message Deleted')
       .setTimestamp()
       .setFooter({ text: `Message ID: ${message.id}` });
 
@@ -91,7 +91,7 @@ module.exports = {
     } else {
       embed.addFields({
         name:   'Content',
-        value:  '*Not cached — message was sent before the bot last started*',
+        value:  '*Not cached — message was sent before the bot restarted or something else happened.*',
         inline: false,
       });
     }
