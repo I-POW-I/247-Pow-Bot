@@ -27,7 +27,7 @@ async function joinChannel(targetChannel, guild, member, client, interaction) {
     if (HEALTHY.includes(existingConn.state.status)) {
       const entry = store.getEntry(guild.id);
       return interaction.reply({
-        content: `⚠️ Already connected to **${entry?.channelName || 'a voice channel'}**. Use Leave first.`,
+        content: `I am already connected to **${entry?.channelName || 'a voice channel'}**. Ask a admin to use the Leave button first.`,
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -69,7 +69,7 @@ async function joinChannel(targetChannel, guild, member, client, interaction) {
     return interaction.reply({ content: `✅ Joined **${targetChannel.name}**.`, flags: [MessageFlags.Ephemeral] });
   } catch {
     return interaction.reply({
-      content: '❌ Failed to join — check I have the **Connect** permission.',
+      content: 'Failed to join — check I have the **Connect** permission.',
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -89,7 +89,7 @@ module.exports = {
         await command.execute(interaction, client);
       } catch (err) {
         log('WARN', `Error in /${interaction.commandName}`, { error: err.message });
-        const reply = { content: '❌ Something went wrong.', flags: [MessageFlags.Ephemeral] };
+        const reply = { content: 'Something went wrong.', flags: [MessageFlags.Ephemeral] };
         interaction.replied || interaction.deferred
           ? await interaction.followUp(reply)
           : await interaction.reply(reply);
@@ -101,7 +101,7 @@ module.exports = {
     if (interaction.isChannelSelectMenu() && interaction.customId === 'bot_join_channel') {
       const targetChannel = interaction.channels.first();
       if (!targetChannel?.isVoiceBased()) {
-        return interaction.reply({ content: '❌ That is not a voice channel.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'That is not a voice channel.', flags: [MessageFlags.Ephemeral] });
       }
       return joinChannel(targetChannel, interaction.guild, interaction.member, client, interaction);
     }
@@ -112,7 +112,7 @@ module.exports = {
       const user   = interaction.users.first();
       const member = await guild.members.fetch(user.id).catch(() => null);
       if (!member) {
-        return interaction.reply({ content: '❌ Could not find that member.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'Could not find that member.', flags: [MessageFlags.Ephemeral] });
       }
       return interaction.reply({
         embeds: [buildMemberEmbed(member, guild)],
@@ -133,7 +133,7 @@ module.exports = {
 
       if (existing) {
         return interaction.update({
-          content: `❌ **${gameName}** is already being tracked in this server.`,
+          content: `> **${gameName}** is already being tracked in this server.`,
           components: [],
         });
       }
@@ -162,7 +162,7 @@ module.exports = {
       const sub      = selectOne('SELECT * FROM game_subscriptions WHERE id = ? AND guild_id = ?', [subId, guild.id]);
 
       if (!sub) {
-        return interaction.update({ content: '❌ Not found — may have already been removed.', components: [] });
+        return interaction.update({ content: 'Not found — may have already been removed.', components: [] });
       }
 
       run('DELETE FROM game_subscriptions WHERE id = ?', [subId]);
@@ -178,7 +178,7 @@ module.exports = {
     if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_test_select') {
       const subId = interaction.values[0];
       const sub   = selectOne('SELECT * FROM game_subscriptions WHERE id = ?', [subId]);
-      if (!sub) return interaction.update({ content: '❌ Not found.', components: [] });
+      if (!sub) return interaction.update({ content: 'Not found.', components: [] });
       await interaction.update({ content: `🔍 Fetching latest update for **${sub.game_name}**...`, components: [] });
       const { runTest } = require('../commands/gamealerts');
       return runTest(interaction, sub);
@@ -191,7 +191,7 @@ module.exports = {
       const sub   = selectOne('SELECT * FROM streamer_subscriptions WHERE id = ? AND guild_id = ?', [subId, guild.id]);
 
       if (!sub) {
-        return interaction.update({ content: '❌ Not found — may have already been removed.', components: [] });
+        return interaction.update({ content: 'Not found — may have already been removed.', components: [] });
       }
 
       run('DELETE FROM streamer_subscriptions WHERE id = ?', [subId]);
@@ -212,14 +212,14 @@ module.exports = {
     if (interaction.customId === 'bot_verify') {
       const roleId = getVerifyRoleId(guild.id);
       if (!roleId) {
-        return interaction.reply({ content: '❌ Verification not set up. An admin needs to run `/verify setup` first.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'Verification not set up. An admin needs to run `/verify setup` first.', flags: [MessageFlags.Ephemeral] });
       }
       const role = guild.roles.cache.get(roleId);
       if (!role) {
-        return interaction.reply({ content: '❌ The verify role no longer exists — contact an admin.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'The verify role no longer exists — contact an admin.', flags: [MessageFlags.Ephemeral] });
       }
       if (member.roles.cache.has(roleId)) {
-        return interaction.reply({ content: '✅ You are already verified.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'You are already verified.', flags: [MessageFlags.Ephemeral] });
       }
       try {
         await member.roles.add(role, 'Verified via button');
@@ -227,7 +227,7 @@ module.exports = {
         return interaction.reply({ content: `✅ You've been verified and given the **${role.name}** role.`, flags: [MessageFlags.Ephemeral] });
       } catch (err) {
         log('WARN', 'Failed to assign verify role', { guild: guild.name, error: err.message });
-        return interaction.reply({ content: '❌ Failed to assign role — make sure my role is above the verify role in Server Settings → Roles.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'Failed to assign role — make sure my role is above the verify role in Server Settings → Roles.', flags: [MessageFlags.Ephemeral] });
       }
     }
 
@@ -235,7 +235,7 @@ module.exports = {
 
     if (interaction.customId === 'bot_refresh') {
       await updatePanel(client);
-      return interaction.reply({ content: '🔄 Panel refreshed.', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: 'Panel refreshed.', flags: [MessageFlags.Ephemeral] });
     }
 
     if (interaction.customId === 'bot_myinfo') {
@@ -263,7 +263,7 @@ module.exports = {
     // ── Join — Manage Server ──────────────────────────────────────────────────
     if (interaction.customId === 'bot_join') {
       if (!isAdmin) {
-        return interaction.reply({ content: '🚫 You need **Manage Server** to use this.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: 'You need **Manage Server** to use this.', flags: [MessageFlags.Ephemeral] });
       }
       const targetChannel = member.voice?.channel;
       if (targetChannel?.isVoiceBased()) return joinChannel(targetChannel, guild, member, client, interaction);
@@ -278,13 +278,13 @@ module.exports = {
     if (interaction.customId === 'bot_leave') {
       if (!canControl) {
         return interaction.reply({
-          content: botControlRoleId ? `🚫 You need the <@&${botControlRoleId}> role.` : '🚫 Only the server owner can use this.',
+          content: botControlRoleId ? `You need the <@&${botControlRoleId}> role.` : 'Only the server owner can use this.',
           flags: [MessageFlags.Ephemeral],
         });
       }
       const conn  = getVoiceConnection(guild.id);
       const entry = store.getEntry(guild.id);
-      if (!conn && !entry) return interaction.reply({ content: "❌ Not connected.", flags: [MessageFlags.Ephemeral] });
+      if (!conn && !entry) return interaction.reply({ content: "Not connected.", flags: [MessageFlags.Ephemeral] });
       if (conn) { try { conn.destroy(); } catch (_) {} }
       stopSilencePlayer(guild.id);
       store.clearConnection(guild.id);
@@ -292,14 +292,14 @@ module.exports = {
       client.user.setPresence({ status: 'idle', activities: [{ name: 'Sleeping...', type: ActivityType.Custom }] });
       log('VOICE', 'Left via panel', { guild: guild.name, by: member.user.tag });
       await updatePanel(client);
-      return interaction.reply({ content: `👋 Disconnected from **${entry?.channelName || 'the voice channel'}**.`, flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: `Disconnected from **${entry?.channelName || 'the voice channel'}**.`, flags: [MessageFlags.Ephemeral] });
     }
 
     // ── Force Leave — role/owner gated ────────────────────────────────────────
     if (interaction.customId === 'bot_forceleave') {
       if (!canControl) {
         return interaction.reply({
-          content: botControlRoleId ? `🚫 You need the <@&${botControlRoleId}> role.` : '🚫 Only the server owner can use this.',
+          content: botControlRoleId ? `You need the <@&${botControlRoleId}> role.` : 'Only the server owner can use this.',
           flags: [MessageFlags.Ephemeral],
         });
       }
@@ -309,11 +309,10 @@ module.exports = {
       stopSilencePlayer(guild.id);
       store.clearConnection(guild.id);
       clearLastChannel(guild.id);
-      client.user.setPresence({ status: 'idle', activities: [{ name: 'Sleeping...', type: ActivityType.Custom }] });
       log('VOICE', 'Force leave via panel', { guild: guild.name, by: member.user.tag });
       await updatePanel(client);
       return interaction.reply({
-        content: !conn && hadEntry ? '👻 Ghost cleared. All state wiped.' : '🔴 Force disconnected.',
+        content: !conn && hadEntry ? 'cache cleared. Bot state reset.' : '🔴 Force disconnected the from voice channel.',
         flags: [MessageFlags.Ephemeral],
       });
     }
