@@ -36,7 +36,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x57F287)
-      .setTitle(`${isNew ? '⚠️  New Account — ' : ''}📥  Member Joined`)
+      .setTitle(`${isNew ? '⚠️  New Account — ' : ''}Member Joined`)
       .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
       .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
       .addFields(
