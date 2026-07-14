@@ -9,7 +9,7 @@ const {
 } = require('../src/statusUpdater');
 const { setLastChannel, clearLastChannel, setStats, getVerifyRoleId, getBotControlRoleId } = require('../src/guildConfig');
 const { attachSilencePlayer, stopSilencePlayer } = require('../src/audioPlayer');
-const { run, selectOne }          = require('../src/database');
+const { run, selectOne, selectAll } = require('../src/database');
 const { joinTimes }               = require('../src/memberTracker');
 
 const HEALTHY = [
@@ -118,6 +118,70 @@ module.exports = {
         embeds: [buildMemberEmbed(member, guild)],
         flags:  [MessageFlags.Ephemeral],
       });
+    }
+
+    // ── Game alert: add (game selected from search results) ──────────────────
+    if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_add_select') {
+      const { guild, member } = interaction;
+      const [appId, channelId, roleId] = interaction.values[0].split('|');
+      const gameName = interaction.component.options.find(o => o.value === interaction.values[0])?.label || `App ${appId}`;
+
+      const existing = selectOne(
+        'SELECT id FROM game_subscriptions WHERE guild_id = ? AND app_id = ?',
+        [guild.id, appId]
+      );
+
+      if (existing) {
+        return interaction.update({
+          content: `❌ **${gameName}** is already being tracked in this server.`,
+          components: [],
+        });
+      }
+
+      const { GAME_COLOURS } = require('../commands/gamealerts');
+      const color = GAME_COLOURS?.[parseInt(appId)] || null;
+
+      run(
+        'INSERT INTO game_subscriptions (guild_id, app_id, game_name, channel_id, role_id, color) VALUES (?, ?, ?, ?, ?, ?)',
+        [guild.id, appId, gameName, channelId, roleId || null, color || null]
+      );
+
+      log('INFO', 'Game alert added', { guild: guild.name, game: gameName, appId, by: member.user.tag });
+
+      const roleStr = roleId ? ` · pinging <@&${roleId}>` : '';
+      return interaction.update({
+        content: `✅ Now tracking **${gameName}** — updates will post in <#${channelId}>${roleStr}.`,
+        components: [],
+      });
+    }
+
+    // ── Game alert: remove ────────────────────────────────────────────────────
+    if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_remove_select') {
+      const { guild, member } = interaction;
+      const subId    = interaction.values[0];
+      const sub      = selectOne('SELECT * FROM game_subscriptions WHERE id = ? AND guild_id = ?', [subId, guild.id]);
+
+      if (!sub) {
+        return interaction.update({ content: '❌ Not found — may have already been removed.', components: [] });
+      }
+
+      run('DELETE FROM game_subscriptions WHERE id = ?', [subId]);
+      log('INFO', 'Game alert removed', { guild: guild.name, game: sub.game_name, by: member.user.tag });
+
+      return interaction.update({
+        content: `✅ No longer tracking **${sub.game_name}**.`,
+        components: [],
+      });
+    }
+
+    // ── Game alert: test (game selected) ─────────────────────────────────────
+    if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_test_select') {
+      const subId = interaction.values[0];
+      const sub   = selectOne('SELECT * FROM game_subscriptions WHERE id = ?', [subId]);
+      if (!sub) return interaction.update({ content: '❌ Not found.', components: [] });
+      await interaction.update({ content: `🔍 Fetching latest update for **${sub.game_name}**...`, components: [] });
+      const { runTest } = require('../commands/gamealerts');
+      return runTest(interaction, sub);
     }
 
     // ── Remove streamer select ────────────────────────────────────────────────
