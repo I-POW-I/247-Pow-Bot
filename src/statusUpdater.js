@@ -50,9 +50,6 @@ function formatLive(ms) {
 
 function buildRotationSlots(client) {
   const active = store.getAllEntries().filter(([guildId]) => isConnected(guildId));
-  if (active.length === 0) {
-    return [{ name: 'Sleeping...', discordStatus: 'idle', type: ActivityType.Custom }];
-  }
   const slots = [];
   for (const [, meta] of active) {
     slots.push({
@@ -117,14 +114,14 @@ function buildPanelEmbed(guildId, guild = null) {
 
   } else if (isGhost) {
     colour      = 0xFEE75C;
-    statusLine  = '👻 Ghost — Force Leave then Join';
+    statusLine  = '🟡 Stalled Connection — Use Force Leave to Reset';
     channelLine = entry.channelName;
     vcUptime    = '—';
     processUp   = getProcessUptime();
     membersInVc = '—';
   } else {
     colour      = 0xED4245;
-    statusLine  = '🔴 Idle';
+    statusLine  = '🔴 Sleeping...';
     channelLine = '—';
     vcUptime    = '—';
     processUp   = getProcessUptime();
@@ -263,7 +260,7 @@ function buildMemberEmbed(member, guild) {
   // ── Boost status ─────────────────────────────────────────────────────────
   const boostSince = member.premiumSince;
   const boostStr   = boostSince
-    ? `🚀 Boosting since <t:${Math.floor(boostSince.getTime() / 1000)}:R>`
+    ? `Boosting since <t:${Math.floor(boostSince.getTime() / 1000)}:R>`
     : 'Not boosting';
 
   // ── Current voice state ───────────────────────────────────────────────────
@@ -276,12 +273,12 @@ function buildMemberEmbed(member, guild) {
     const streaming = streamTimes.has(vcKey);
 
     const indicators = [
-      vc.selfMute   ? '🔇 Muted'       : null,
-      vc.selfDeaf   ? '🙉 Deafened'    : null,
-      vc.serverMute ? '🔴 Server Muted' : null,
-      vc.serverDeaf ? '🚫 Server Deaf'  : null,
-      vc.streaming  ? '🖥️ Streaming'   : null,
-      vc.selfVideo  ? '📷 Camera'       : null,
+      vc.selfMute   ? 'Muted'       : null,
+      vc.selfDeaf   ? 'Deafened'    : null,
+      vc.serverMute ? 'Server Muted' : null,
+      vc.serverDeaf ? 'Server Deafened'  : null,
+      vc.streaming  ? 'Streaming'   : null,
+      vc.selfVideo  ? 'Live Camera'       : null,
     ].filter(Boolean);
 
     vcLine = `<#${vc.channel.id}> — **${vc.channel.name}**`;
@@ -315,7 +312,7 @@ function buildMemberEmbed(member, guild) {
     .setColor(member.displayColor || 0x5865F2)
     .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true, size: 256 }) })
     .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-    .setTitle('👤  Member Profile')
+    .setTitle('User Profile')
     .addFields(
       { name: 'Joined Server',  value: `<t:${Math.floor(member.joinedAt.getTime() / 1000)}:D>\n<t:${Math.floor(member.joinedAt.getTime() / 1000)}:R>`, inline: true },
       { name: 'Account Created', value: `<t:${Math.floor(user.createdAt.getTime() / 1000)}:D>\n<t:${Math.floor(user.createdAt.getTime() / 1000)}:R>`, inline: true },
@@ -333,7 +330,7 @@ function buildMemberEmbed(member, guild) {
   embed.addFields({ name: 'Boost Status', value: boostStr, inline: false });
 
   if (timedOut) {
-    embed.addFields({ name: '⏱️ Timed Out', value: `Until <t:${Math.floor(member.communicationDisabledUntilTimestamp / 1000)}:R>`, inline: true });
+    embed.addFields({ name: 'Timed Out', value: `Until <t:${Math.floor(member.communicationDisabledUntilTimestamp / 1000)}:R>`, inline: true });
   }
 
 
@@ -349,7 +346,7 @@ function buildMemberEmbed(member, guild) {
       { name: 'Top Channel',     value: stats.top_channel
           ? `**${stats.top_channel}** (${formatMs(stats.top_channel_ms)})`
           : '—',                                                                                 inline: true },
-      { name: 'VC Streak',       value: stats.streak > 0 ? `🔥 ${stats.streak} day(s)` : '—', inline: true },
+      { name: 'VC Streak',       value: stats.streak > 0 ? `${stats.streak} day(s)` : '—', inline: true },
       { name: 'Last Seen in VC', value: lastSeenStr,                                            inline: true },
     );
   } else {
@@ -386,7 +383,7 @@ function buildPanelButtons() {
 
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
-      .setLabel('Force Leave')
+      .setLabel('Leave & Reset')
       .setEmoji('🔌')
       .setStyle(ButtonStyle.Danger),
   );
@@ -400,13 +397,13 @@ function buildPanelButtons() {
 
     new ButtonBuilder()
       .setCustomId('bot_lookup')
-      .setLabel('Lookup User')
+      .setLabel('User Lookup')
       .setEmoji('🔍')
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
       .setCustomId('bot_refresh')
-      .setLabel('Refresh')
+      .setLabel('Panel Refresh')
       .setEmoji('🔄')
       .setStyle(ButtonStyle.Secondary),
   );
