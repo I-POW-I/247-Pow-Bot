@@ -372,19 +372,19 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_join')
       .setLabel('Join')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
       .setCustomId('bot_leave')
       .setLabel('Leave')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
       .setCustomId('bot_forceleave')
       .setLabel('Leave & Reset')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Danger),
   );
 
@@ -392,19 +392,19 @@ function buildPanelButtons() {
     new ButtonBuilder()
       .setCustomId('bot_myinfo')
       .setLabel('My Info')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Primary),
 
     new ButtonBuilder()
       .setCustomId('bot_lookup')
       .setLabel('User Lookup')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
       .setCustomId('bot_refresh')
       .setLabel('Panel Refresh')
-      .setEmoji('🖤')
+      .setEmoji('-')
       .setStyle(ButtonStyle.Secondary),
   );
 
