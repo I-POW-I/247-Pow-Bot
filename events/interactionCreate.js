@@ -312,7 +312,7 @@ module.exports = {
       log('VOICE', 'Force leave via panel', { guild: guild.name, by: member.user.tag });
       await updatePanel(client);
       return interaction.reply({
-        content: !conn && hadEntry ? 'cache cleared. Bot state reset.' : '🔴 Force disconnected the from voice channel.',
+        content: !conn && hadEntry ? 'Cache cleared, Bot state now reset & ready to go.' : '🔴 Force disconnected the from voice channel.',
         flags: [MessageFlags.Ephemeral],
       });
     }
