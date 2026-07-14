@@ -103,7 +103,7 @@ module.exports = {
       joinTimes.set(key, Date.now());
       startSession(member.user.id, guild.id, newChannel.id, newChannel.name);
 
-      await sendLog(guild, base(member, C.join, '📥  Member Joined Voice')
+      await sendLog(guild, base(member, C.join, 'Member Joined Voice Call')
         .addFields(
           { name: 'Channel',     value: `<#${newChannel.id}>`, inline: true },
           { name: 'Members Now', value: `${newChannel.members.size}`, inline: true },
@@ -125,7 +125,7 @@ module.exports = {
       const disconnectedBy = await getDisconnectMod(guild);
 
       if (disconnectedBy) {
-        await sendLog(guild, base(member, C.forceLeave, '🚫  Member Disconnected by Moderator')
+        await sendLog(guild, base(member, C.forceLeave, 'Member Disconnected by Moderator')
           .addFields(
             { name: 'Channel',         value: `<#${oldChannel.id}>`,  inline: true },
             { name: 'Was In',          value: duration || 'Unknown',   inline: true },
@@ -133,7 +133,7 @@ module.exports = {
             { name: 'Disconnected By', value: disconnectedBy,          inline: false },
           ));
       } else {
-        await sendLog(guild, base(member, C.leave, '📤  Member Left Voice')
+        await sendLog(guild, base(member, C.leave, 'Member Left Voice Call')
           .addFields(
             { name: 'Channel', value: `<#${oldChannel.id}>`, inline: true },
             { name: 'Was In',  value: duration || 'Unknown',  inline: true },
@@ -153,7 +153,7 @@ module.exports = {
 
       const embed = base(member,
         movedBy ? C.modMove : C.move,
-        movedBy ? '🔀  Member Moved by Moderator' : '🔀  Member Changed Channel')
+        movedBy ? 'Member Moved by Moderator' : 'Member Changed Channel')
         .addFields(
           { name: 'From', value: `<#${oldChannel.id}>`, inline: true },
           { name: 'To',   value: `<#${newChannel.id}>`, inline: true },
@@ -173,7 +173,7 @@ module.exports = {
       const mod = await getMuteDeafMod(guild, member.id);
       await sendLog(guild, base(member,
         newState.serverMute ? C.serverMute : C.serverUnmute,
-        newState.serverMute ? '🔇  Member Server Muted' : '🔈  Member Server Unmuted')
+        newState.serverMute ? 'Member Server Muted' : 'Member Server Unmuted')
         .addFields(
           { name: 'Channel',   value: newChannel ? `<#${newChannel.id}>` : '—', inline: true },
           { name: 'Action By', value: mod || 'Unknown',                          inline: true },
@@ -187,7 +187,7 @@ module.exports = {
       const mod = await getMuteDeafMod(guild, member.id);
       await sendLog(guild, base(member,
         newState.serverDeaf ? C.serverDeafen : C.serverUndeafen,
-        newState.serverDeaf ? '🔕  Member Server Deafened' : '🔔  Member Server Undeafened')
+        newState.serverDeaf ? 'Member Server Deafened' : 'Member Server Undeafened')
         .addFields(
           { name: 'Channel',   value: newChannel ? `<#${newChannel.id}>` : '—', inline: true },
           { name: 'Action By', value: mod || 'Unknown',                          inline: true },
@@ -200,7 +200,7 @@ module.exports = {
     if (oldState.streaming !== newState.streaming) {
       if (newState.streaming) {
         streamTimes.set(key, Date.now());
-        await sendLog(guild, base(member, C.streamStart, '🖥️  Member Started Streaming')
+        await sendLog(guild, base(member, C.streamStart, 'Member Started Streaming')
           .addFields(
             { name: 'Channel', value: newChannel ? `<#${newChannel.id}>` : '—', inline: true },
             { name: '\u200b',  value: '\u200b',                                  inline: true },
@@ -211,7 +211,7 @@ module.exports = {
           ? formatDuration(Date.now() - streamTimes.get(key))
           : null;
         streamTimes.delete(key);
-        await sendLog(guild, base(member, C.streamStop, '🖥️  Member Stopped Streaming')
+        await sendLog(guild, base(member, C.streamStop, 'Member Stopped Streaming')
           .addFields(
             { name: 'Channel',      value: newChannel ? `<#${newChannel.id}>` : '—', inline: true },
             { name: 'Streamed For', value: duration || 'Unknown',                     inline: true },
