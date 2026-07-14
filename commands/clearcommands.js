@@ -51,8 +51,7 @@ module.exports = {
           `**Global commands** — wiped and re-registered ${commandData.length} command(s): ${names}`,
           `**Guild commands cleared:** ${guildResults.join(' · ')}`,
           ``,
-          `Old commands like \`/join\`, \`/leave\`, \`/stay\` should disappear within a few minutes.`,
-          `If they still show after 10 minutes, restart your Discord app.`,
+          `Cleared old/stuck in limbo commands.`,
         ].join('\n'),
       });
 
