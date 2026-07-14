@@ -5,7 +5,7 @@
  */
 
 const ICONS = {
-  INFO:  'ℹ️ ',
+  INFO:  '-',
   WARN:  '⚠️ ',
   ERROR: '🔴',
   VOICE: '🔊',
