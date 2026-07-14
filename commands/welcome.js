@@ -107,7 +107,7 @@ module.exports = {
         const attachment = new AttachmentBuilder(buffer, { name: `${type}-preview.png` });
 
         return interaction.editReply({
-          content: `**${type === 'welcome' ? '👋 Welcome' : '📤 Leave'} card preview** — this is exactly what will be posted:`,
+          content: `**${type === 'welcome' ? 'Welcome' : 'Leave'} card preview** — this is exactly what will be posted:`,
           files:   [attachment],
         });
       } catch (err) {
