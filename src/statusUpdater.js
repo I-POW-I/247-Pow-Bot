@@ -11,7 +11,7 @@ const { getUserStats, getServerTotals, formatMs }  = require('./database');
 const { joinTimes, streamTimes }           = require('./memberTracker');
 
 const PRESENCE_INTERVAL  = 60 * 1000;
-const ROTATION_INTERVAL  = 30 * 1000;
+const ROTATION_INTERVAL  = 20 * 1000;
 let rotationIndex = 0;
 
 const HEALTHY = [
