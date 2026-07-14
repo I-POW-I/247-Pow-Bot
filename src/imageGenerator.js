@@ -7,7 +7,6 @@
  *   - Large circular avatar centered
  *   - Bold username text below avatar
  *   - Smaller subtitle line beneath that
- *   - Leave card: greyscale avatar tint
  */
 
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
