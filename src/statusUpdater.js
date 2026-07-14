@@ -285,7 +285,7 @@ function buildMemberEmbed(member, guild) {
     if (sessionMs) vcLine += ` · ${formatLive(sessionMs)}`;
     if (streaming) {
       const streamMs = Date.now() - streamTimes.get(vcKey);
-      vcLine += `\n🖥️ Streaming for ${formatLive(streamMs)}`;
+      vcLine += `\nStreaming for ${formatLive(streamMs)}`;
     }
     if (indicators.length > 0) vcLine += `\n${indicators.join(' · ')}`;
   } else {
