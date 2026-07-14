@@ -6,10 +6,10 @@ const { setLogChannel, getLogChannel } = require('../src/guildConfig');
 const { log } = require('../src/logger');
 
 const TYPES = [
-  { key: 'voice',    label: '🔊 Voice Activity',    option: 'voice'      },
-  { key: 'messages', label: '🗑️ Message Logs',      option: 'messages'   },
-  { key: 'members',  label: '👥 Member Join/Leave',  option: 'members'    },
-  { key: 'modlog',   label: '🔨 Moderation Actions', option: 'moderation' },
+  { key: 'voice',    label: 'Voice Activity',    option: 'voice'      },
+  { key: 'messages', label: 'Message Logs',      option: 'messages'   },
+  { key: 'members',  label: 'Member Join/Leave',  option: 'members'    },
+  { key: 'modlog',   label: 'Moderation Actions', option: 'moderation' },
 ];
 
 module.exports = {
