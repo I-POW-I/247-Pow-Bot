@@ -80,7 +80,7 @@ function startStatusUpdater(client) {
   const panelUpdate = async () => { await updatePanel(client); };
   panelUpdate();
   setInterval(panelUpdate, PRESENCE_INTERVAL);
-  log('INFO', 'Status updater started (30s rotation · 60s panel)');
+  log('INFO', 'Status updater started (20s rotation · 60s panel)');
 }
 
 // ── Panel embed ───────────────────────────────────────────────────────────────
