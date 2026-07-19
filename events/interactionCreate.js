@@ -178,10 +178,11 @@ module.exports = {
     if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_test_select') {
       const subId = interaction.values[0];
       const sub   = selectOne('SELECT * FROM game_subscriptions WHERE id = ?', [subId]);
-      if (!sub) return interaction.update({ content: 'Not found.', components: [] });
-      await interaction.update({ content: `🔍 Fetching latest update for **${sub.game_name}**...`, components: [] });
+      if (!sub) return interaction.update({ content: '❌ Not found.', components: [] });
+      // deferReply creates a new ephemeral response — runTest uses editReply on it
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
       const { runTest } = require('../commands/gamealerts');
-      return runTest(interaction, sub);
+      return runTest(interaction, sub, true); // true = already deferred
     }
 
     // ── Remove streamer select ────────────────────────────────────────────────
