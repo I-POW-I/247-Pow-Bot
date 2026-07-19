@@ -1,11 +1,8 @@
-/**
- * /freegames — manually show current Epic Games Store free games.
- * Anyone can run this. Posts an embed with all current free games
- * and upcoming ones, with claim buttons.
- */
-
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const { getFreeGames } = require('../src/platforms/epicGames');
+
+const EPIC_LOGO = 'https://cdn2.unrealengine.com/Unreal+Engine%2Feg-logo-filled-1255x1255-0eb9d144a0f981d1cbaaa1eb957de7f3207b31bb.png';
+const TAG_DOTS  = ['🔴', '🟡', '🟢', '🔵', '🟣', '🟠'];
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,67 +11,50 @@ module.exports = {
 
   async execute(interaction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-
     const { current, upcoming } = await getFreeGames();
 
-    if (current.length === 0) {
-      return interaction.editReply({
-        content: '🎮 No free games available on Epic right now. Check back soon!',
-      });
+    if (!current.length) return interaction.editReply({ content: '🎮 No free games on Epic right now. Check back soon!' });
+
+    for (let i = 0; i < current.length; i++) {
+      const game    = current[i];
+      const endsAt  = game.endsAt ? `<t:${Math.floor(new Date(game.endsAt).getTime() / 1000)}:D>` : null;
+      const price   = [game.origPrice ? `~~${game.origPrice}~~` : null, '**Free**', endsAt ? `until ${endsAt}` : null].filter(Boolean).join(' ');
+      const tagLine = game.tags?.length ? game.tags.map((t, j) => `${TAG_DOTS[j % TAG_DOTS.length]} **${t}**`).join('  ') : null;
+
+      const desc = [
+        game.description || null,
+        '',
+        price,
+        '',
+        `[Open in browser ↗](${game.url})`,
+        tagLine ? '' : null,
+        tagLine,
+      ].filter(v => v !== null).join('\n');
+
+      const embed = new EmbedBuilder()
+        .setColor(0x0078F2).setTitle(game.title).setURL(game.url)
+        .setThumbnail(EPIC_LOGO).setDescription(desc)
+        .setTimestamp().setFooter({ text: 'Epic Games Store • Free Game' });
+
+      if (game.image) embed.setImage(game.image);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('Claim Free Game').setURL(game.url).setEmoji('🎮').setStyle(ButtonStyle.Link)
+      );
+
+      if (i === 0) await interaction.editReply({ embeds: [embed], components: [row] });
+      else await interaction.followUp({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x0078F2)
-      .setTitle('🎮 Free Games on Epic Games Store')
-      .setAuthor({
-        name:    'Epic Games Store',
-        iconURL: 'https://cdn2.unrealengine.com/Unreal+Engine%2Feg-logo-filled-1255x1255-0eb9d144a0f981d1cbaaa1eb957de7f3207b31bb.png',
-        url:     'https://store.epicgames.com/free-games',
-      })
-      .setTimestamp()
-      .setFooter({ text: 'Free to claim — yours to keep forever once claimed' });
-
-    // First game image as main image
-    if (current[0]?.image) embed.setImage(current[0].image);
-
-    for (const game of current) {
-      const endsAt = game.endsAt
-        ? `Ends <t:${Math.floor(new Date(game.endsAt).getTime() / 1000)}:R>`
-        : 'Limited time';
-      embed.addFields({
-        name:   `🎁 ${game.title}`,
-        value:  [
-          game.publisher ? `*by ${game.publisher}*` : null,
-          game.price     ? `~~${game.price}~~ **FREE**` : '**FREE**',
-          endsAt,
-        ].filter(Boolean).join('\n'),
-        inline: current.length > 1,
-      });
+    if (upcoming.length) {
+      const upEmbed = new EmbedBuilder()
+        .setColor(0x0078F2).setTitle('⏳ Coming Up Free on Epic').setThumbnail(EPIC_LOGO)
+        .setDescription(upcoming.map(g => {
+          const starts = g.startsAt ? `<t:${Math.floor(new Date(g.startsAt).getTime() / 1000)}:D>` : 'Soon';
+          return `**${g.title}** — free from ${starts}${g.origPrice ? ` (normally ${g.origPrice})` : ''}`;
+        }).join('\n'))
+        .setTimestamp().setFooter({ text: 'Epic Games Store' });
+      await interaction.followUp({ embeds: [upEmbed], flags: [MessageFlags.Ephemeral] });
     }
-
-    if (upcoming.length > 0) {
-      const lines = upcoming.map(g => {
-        const starts = g.startsAt
-          ? `<t:${Math.floor(new Date(g.startsAt).getTime() / 1000)}:R>`
-          : 'Soon';
-        return `**${g.title}** — free ${starts}`;
-      });
-      embed.addFields({ name: '⏳ Coming Up Next', value: lines.join('\n'), inline: false });
-    }
-
-    // Claim buttons — one per free game (max 5)
-    const buttons = current.slice(0, 5).map(game =>
-      new ButtonBuilder()
-        .setLabel(`Claim: ${game.title.slice(0, 35)}`)
-        .setURL(game.url)
-        .setEmoji('🎮')
-        .setStyle(ButtonStyle.Link)
-    );
-
-    const components = buttons.length > 0
-      ? [new ActionRowBuilder().addComponents(buttons)]
-      : [];
-
-    return interaction.editReply({ embeds: [embed], components });
   },
 };
