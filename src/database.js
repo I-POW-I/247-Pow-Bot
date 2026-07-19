@@ -72,6 +72,19 @@ async function init() {
         UNIQUE(guild_id, app_id)
       );
       CREATE INDEX IF NOT EXISTS idx_game_guild ON game_subscriptions (guild_id);
+
+      CREATE TABLE IF NOT EXISTS game_subscriptions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id     TEXT    NOT NULL,
+        app_id       TEXT    NOT NULL,
+        game_name    TEXT,
+        channel_id   TEXT    NOT NULL,
+        role_id      TEXT,
+        last_post_id TEXT,
+        color        INTEGER,
+        UNIQUE(guild_id, app_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_game_guild ON game_subscriptions (guild_id);
     `);
 
     save();
@@ -79,6 +92,7 @@ async function init() {
     // Migrate existing tables — add columns that may not exist yet
     const migrations = [
       'ALTER TABLE streamer_subscriptions ADD COLUMN last_updated_at INTEGER',
+      'ALTER TABLE game_subscriptions ADD COLUMN color INTEGER',
       'ALTER TABLE game_subscriptions ADD COLUMN color INTEGER',
     ];
     for (const m of migrations) {
