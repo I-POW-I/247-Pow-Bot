@@ -54,7 +54,7 @@ function buildRotationSlots(client) {
   for (const [, meta] of active) {
     slots.push({
       name:          `🔊 ${meta.channelName} · ${store.formatUptime(meta.joinedAt)}`,
-      discordStatus: 'online',
+      discordStatus: 'dnd',
       type:          ActivityType.Custom,
     });
   }
@@ -143,7 +143,7 @@ function buildPanelEmbed(guildId, guild = null) {
     .setTimestamp();
 }
 
-// ── Stats embed (/status command) ─────────────────────────────────────────────
+// ── Stats embed ─────────────────────────────────────────────
 
 function buildStatsEmbed(guildId, client) {
   const entry     = store.getEntry(guildId);
