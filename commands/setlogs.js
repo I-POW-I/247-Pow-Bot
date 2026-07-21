@@ -28,6 +28,9 @@ module.exports = {
     )
     .addChannelOption(opt =>
       opt.setName('moderation').setDescription('Moderation action logs (kick, ban, warn, timeout)').addChannelTypes(ChannelType.GuildText).setRequired(false)
+    )
+    .addChannelOption(opt =>
+      opt.setName('commands').setDescription('Log every slash command used in the server').addChannelTypes(ChannelType.GuildText).setRequired(false)
     ),
 
   async execute(interaction) {
