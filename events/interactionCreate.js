@@ -85,6 +85,42 @@ module.exports = {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
+
+      // ── Log every slash command use to console and command log channel ────────
+      const cmdArgs = interaction.options?.data?.map(o => `${o.name}:${o.value ?? '[subcommand]'}`).join(' ') || '';
+      log('INFO', `/${interaction.commandName}${cmdArgs ? ' ' + cmdArgs : ''}`, {
+        user:    interaction.user.tag,
+        guild:   interaction.guild?.name || 'DM',
+        channel: interaction.channel?.name || '—',
+      });
+
+      // Post to command log channel if configured
+      const { getLogChannel } = require('../src/guildConfig');
+      const cmdLogId = interaction.guild ? getLogChannel(interaction.guild.id, 'commands') : null;
+      if (cmdLogId) {
+        try {
+          const { EmbedBuilder } = require('discord.js');
+          const cmdCh = await client.channels.fetch(cmdLogId).catch(() => null);
+          if (cmdCh?.isTextBased()) {
+            await cmdCh.send({
+              embeds: [
+                new EmbedBuilder()
+                  .setColor(0x5865F2)
+                  .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+                  .setTitle(`🔹 /${interaction.commandName}`)
+                  .addFields(
+                    { name: 'Used By',  value: `${interaction.member || interaction.user} — ${interaction.user.tag}`, inline: true },
+                    { name: 'Channel',  value: interaction.channel ? `<#${interaction.channel.id}>` : '—', inline: true },
+                    { name: 'Options',  value: cmdArgs || 'None', inline: false },
+                  )
+                  .setTimestamp()
+                  .setFooter({ text: `User ID: ${interaction.user.id}` }),
+              ],
+            });
+          }
+        } catch { /* command log failure is non-critical */ }
+      }
+
       try {
         await command.execute(interaction, client);
       } catch (err) {
