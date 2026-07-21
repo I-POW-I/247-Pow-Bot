@@ -1,18 +1,41 @@
+/**
+ * Game alerts polling engine.
+ *
+ * Steam updates    — every 15 minutes
+ * Epic free games  — every 6 hours
+ * Steam free games — every 3 hours (increased from 6 to catch short-window promos)
+ */
+
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { log }            = require('./logger');
 const { selectAll, run } = require('./database');
-const { getGameNews, getAppDetails, getHeaderImage, parseSteamContent, getSteamFreeGames } = require('./platforms/steam');
-const { getFreeGames }   = require('./platforms/epicGames');
+const {
+  getGameNews, getAppDetails, getHeaderImage,
+  parseSteamContent, getSteamFreeGames,
+} = require('./platforms/steam');
+const { getFreeGames } = require('./platforms/epicGames');
 
-const STEAM_INTERVAL     = 15 * 60 * 1000;
-const FREE_GAME_INTERVAL =  6 * 60 * 60 * 1000;
-const TAG_DOTS = ['🔴', '🟡', '🟢', '🔵', '🟣', '🟠'];
-const STEAM_LOGO = 'https://store.steampowered.com/favicon.ico';
-const EPIC_LOGO  = 'https://cdn2.unrealengine.com/Unreal+Engine%2Feg-logo-filled-1255x1255-0eb9d144a0f981d1cbaaa1eb957de7f3207b31bb.png';
+const STEAM_INTERVAL      = 15 * 60 * 1000;
+const EPIC_INTERVAL       =  6 * 60 * 60 * 1000;
+const STEAM_FREE_INTERVAL =  3 * 60 * 60 * 1000; // 3h — catches shorter promotions
+
+const TAG_DOTS   = ['🔴', '🟡', '🟢', '🔵', '🟣', '🟠'];
+const EPIC_COLOUR  = 0x0078F2;
+const STEAM_COLOUR = 0x1B2838;
 
 function formatTagLine(tags) {
   if (!tags?.length) return null;
   return tags.map((t, i) => `${TAG_DOTS[i % TAG_DOTS.length]} **${t}**`).join('  ');
+}
+
+// ── Reliable channel fetch ─────────────────────────────────────────────────────
+// guild.channels.fetch() can return inconsistent objects — use client.channels.fetch() instead
+async function fetchChannel(client, channelId) {
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased()) return null;
+    return channel;
+  } catch { return null; }
 }
 
 // ── Steam game update embed ────────────────────────────────────────────────────
@@ -41,81 +64,105 @@ function buildSteamUpdateEmbed(item, appId, gameName, details, color) {
 
 // ── Epic free game embed — one per game ───────────────────────────────────────
 function buildEpicGameEmbed(game) {
-  const endsAt    = game.endsAt ? `<t:${Math.floor(new Date(game.endsAt).getTime() / 1000)}:D>` : null;
-  const priceLine = [game.origPrice ? `~~${game.origPrice}~~` : null, '**Free**', endsAt ? `until ${endsAt}` : null].filter(Boolean).join(' ');
-  const tagLine   = formatTagLine(game.tags);
+  const endsAt    = game.endsAt
+    ? `<t:${Math.floor(new Date(game.endsAt).getTime() / 1000)}:D>`
+    : null;
+  const priceLine = [
+    game.origPrice ? `~~${game.origPrice}~~` : null,
+    '**Free**',
+    endsAt ? `until ${endsAt}` : null,
+  ].filter(Boolean).join(' ');
 
-  const descParts = [];
-  if (game.description) descParts.push(game.description);
-  descParts.push('');
-  descParts.push(priceLine);
-  descParts.push('');
-  descParts.push(`[Open in browser ↗](${game.url})`);
-  if (tagLine) { descParts.push(''); descParts.push(tagLine); }
+  const tagLine = formatTagLine(game.tags);
+  const desc = [
+    game.description || null,
+    '',
+    priceLine,
+    '',
+    `[Open in browser ↗](${game.url})`,
+    tagLine ? '' : null,
+    tagLine,
+  ].filter(v => v !== null).join('\n');
 
   const embed = new EmbedBuilder()
-    .setColor(0x0078F2)
+    .setColor(EPIC_COLOUR)
     .setTitle(game.title)
     .setURL(game.url)
-    .setThumbnail(EPIC_LOGO)
-    .setDescription(descParts.join('\n'))
+    .setDescription(desc)
     .setTimestamp()
     .setFooter({ text: 'Epic Games Store • Free Game' });
 
   if (game.image) embed.setImage(game.image);
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setLabel('Claim Free Game').setURL(game.url).setEmoji('🎮').setStyle(ButtonStyle.Link)
+    new ButtonBuilder()
+      .setLabel('Claim Free Game')
+      .setURL(game.url)
+      .setEmoji('🎮')
+      .setStyle(ButtonStyle.Link)
   );
   return { embed, row };
 }
 
-// ── Steam free game embed — one per game ──────────────────────────────────────
+// ── Steam free game embed — one per game ─────────────────────────────────────
 function buildSteamFreeEmbed(game, details) {
-  const origFormatted  = details?.price?.initial ? `~~$${(details.price.initial / 100).toFixed(2)}~~` : null;
-  const expiryLine     = game.discountExpiry ? `Free until <t:${game.discountExpiry}:D>` : 'Free to Keep';
-  const descParts      = [];
-  if (details?.description) descParts.push(details.description);
-  descParts.push('');
-  descParts.push([origFormatted, `**FREE** — ${expiryLine}`].filter(Boolean).join(' '));
-  descParts.push('');
-  descParts.push(`[Open in browser ↗](${game.url})`);
+  const origFormatted = details?.price?.initial
+    ? `~~$${(details.price.initial / 100).toFixed(2)}~~`
+    : null;
+  const expiryLine = game.discountExpiry
+    ? `Free until <t:${game.discountExpiry}:D>`
+    : 'Free to Keep';
+
+  const desc = [
+    details?.description || null,
+    '',
+    [origFormatted, `**FREE** — ${expiryLine}`].filter(Boolean).join(' '),
+    '',
+    `[Open in browser ↗](${game.url})`,
+  ].filter(v => v !== null).join('\n');
 
   const embed = new EmbedBuilder()
-    .setColor(0x1B2838)
+    .setColor(STEAM_COLOUR)
     .setTitle(game.name)
     .setURL(game.url)
-    .setThumbnail(STEAM_LOGO)
-    .setDescription(descParts.join('\n'))
+    .setDescription(desc)
     .setTimestamp()
     .setFooter({ text: 'Steam • Free Game' });
 
   const fields = [];
-  if (details?.releaseDate) fields.push({ name: 'Release Date', value: details.releaseDate, inline: true });
-  if (details?.platforms)   fields.push({ name: 'Platforms',    value: details.platforms,   inline: true });
+  if (details?.releaseDate) fields.push({ name: 'Released',  value: details.releaseDate, inline: true });
+  if (details?.platforms)   fields.push({ name: 'Platforms', value: details.platforms,   inline: true });
+  if (details?.reviews)     fields.push({ name: 'Reviews',   value: details.reviews,     inline: true });
   if (fields.length) embed.addFields(fields);
 
   const img = details?.screenshots?.[0] || game.headerImage;
   if (img) embed.setImage(img);
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setLabel('Claim on Steam').setURL(game.url).setEmoji('🎮').setStyle(ButtonStyle.Link)
+    new ButtonBuilder()
+      .setLabel('Claim on Steam')
+      .setURL(game.url)
+      .setEmoji('🎮')
+      .setStyle(ButtonStyle.Link)
   );
   return { embed, row };
 }
 
-// ── Check Steam subscription ───────────────────────────────────────────────────
+// ── Check a Steam game subscription ───────────────────────────────────────────
 async function checkSteamSubscription(client, sub) {
-  const news = await getGameNews(sub.app_id, 1);
+  const news = await getGameNews(sub.app_id, 5);
   if (!news?.length) return;
+
   const latest = news[0];
   if (latest.gid === sub.last_post_id) return;
 
   log('INFO', `New update for ${sub.game_name}`);
   try {
-    const guild   = await client.guilds.fetch(sub.guild_id);
-    const channel = await guild.channels.fetch(sub.channel_id);
-    if (!channel?.isTextBased()) return;
+    const channel = await fetchChannel(client, sub.channel_id);
+    if (!channel) {
+      log('WARN', `Cannot find channel for ${sub.game_name}`, { channelId: sub.channel_id });
+      return;
+    }
 
     const details = await getAppDetails(sub.app_id).catch(() => null);
     const { embed, youtubeUrl } = buildSteamUpdateEmbed(latest, sub.app_id, sub.game_name, details, sub.color);
@@ -124,7 +171,9 @@ async function checkSteamSubscription(client, sub) {
       new ButtonBuilder().setLabel('Read Full Notes').setURL(latest.url).setStyle(ButtonStyle.Link).setEmoji('📋')
     );
     if (youtubeUrl) {
-      row.addComponents(new ButtonBuilder().setLabel('Watch Video').setURL(youtubeUrl).setStyle(ButtonStyle.Link).setEmoji('▶️'));
+      row.addComponents(
+        new ButtonBuilder().setLabel('Watch Video').setURL(youtubeUrl).setStyle(ButtonStyle.Link).setEmoji('▶️')
+      );
     }
 
     const content = sub.role_id ? `<@&${sub.role_id}>` : undefined;
@@ -148,30 +197,29 @@ async function checkEpicGames(client) {
   for (const sub of subs) {
     if (sub.last_post_id === currentKey) continue;
     try {
-      const guild   = await client.guilds.fetch(sub.guild_id);
-      const channel = await guild.channels.fetch(sub.channel_id);
-      if (!channel?.isTextBased()) continue;
+      const channel = await fetchChannel(client, sub.channel_id);
+      if (!channel) continue;
 
       const content = sub.role_id ? `<@&${sub.role_id}>` : undefined;
 
-      // One message per free game
       for (let i = 0; i < current.length; i++) {
         const { embed, row } = buildEpicGameEmbed(current[i]);
         await channel.send({ content: i === 0 ? content : undefined, embeds: [embed], components: [row] });
         if (i < current.length - 1) await new Promise(r => setTimeout(r, 1000));
       }
 
-      // Upcoming summary
       if (upcoming.length > 0) {
         const upEmbed = new EmbedBuilder()
-          .setColor(0x0078F2)
+          .setColor(EPIC_COLOUR)
           .setTitle('⏳ Coming Up Free on Epic')
-          .setThumbnail(EPIC_LOGO)
           .setDescription(upcoming.map(g => {
-            const starts = g.startsAt ? `<t:${Math.floor(new Date(g.startsAt).getTime() / 1000)}:D>` : 'Soon';
+            const starts = g.startsAt
+              ? `<t:${Math.floor(new Date(g.startsAt).getTime() / 1000)}:D>`
+              : 'Soon';
             return `**${g.title}** — free from ${starts}${g.origPrice ? ` (normally ${g.origPrice})` : ''}`;
           }).join('\n'))
-          .setTimestamp().setFooter({ text: 'Epic Games Store' });
+          .setTimestamp()
+          .setFooter({ text: 'Epic Games Store' });
         await channel.send({ embeds: [upEmbed] });
       }
 
@@ -197,9 +245,8 @@ async function checkSteamFreeGames(client) {
     if (!newGames.length) continue;
 
     try {
-      const guild   = await client.guilds.fetch(sub.guild_id);
-      const channel = await guild.channels.fetch(sub.channel_id);
-      if (!channel?.isTextBased()) continue;
+      const channel = await fetchChannel(client, sub.channel_id);
+      if (!channel) continue;
 
       const content = sub.role_id ? `<@&${sub.role_id}>` : undefined;
 
@@ -219,9 +266,12 @@ async function checkSteamFreeGames(client) {
   }
 }
 
-// ── Poll all Steam game updates ────────────────────────────────────────────────
+// ── Poll all Steam game update subscriptions ───────────────────────────────────
 async function pollSteam(client) {
-  const subs = selectAll("SELECT * FROM game_subscriptions WHERE app_id != 'epic' AND app_id != 'steam_free'", []);
+  const subs = selectAll(
+    "SELECT * FROM game_subscriptions WHERE app_id != 'epic' AND app_id != 'steam_free'",
+    []
+  );
   for (const sub of subs) {
     await checkSteamSubscription(client, sub);
     await new Promise(r => setTimeout(r, 1000));
@@ -231,11 +281,24 @@ async function pollSteam(client) {
 // ── Start ──────────────────────────────────────────────────────────────────────
 function startGamePoller(client) {
   log('INFO', 'Game poller started');
-  setTimeout(() => { pollSteam(client); setInterval(() => pollSteam(client), STEAM_INTERVAL); }, 20000);
+
+  // Steam game updates — every 15 minutes
   setTimeout(() => {
-    checkEpicGames(client); checkSteamFreeGames(client);
-    setInterval(() => { checkEpicGames(client); checkSteamFreeGames(client); }, FREE_GAME_INTERVAL);
+    pollSteam(client);
+    setInterval(() => pollSteam(client), STEAM_INTERVAL);
+  }, 20000);
+
+  // Epic free games — every 6 hours
+  setTimeout(() => {
+    checkEpicGames(client);
+    setInterval(() => checkEpicGames(client), EPIC_INTERVAL);
   }, 30000);
+
+  // Steam free games — every 3 hours
+  setTimeout(() => {
+    checkSteamFreeGames(client);
+    setInterval(() => checkSteamFreeGames(client), STEAM_FREE_INTERVAL);
+  }, 40000);
 }
 
 module.exports = { startGamePoller };
