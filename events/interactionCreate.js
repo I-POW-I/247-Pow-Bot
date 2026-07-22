@@ -159,7 +159,7 @@ module.exports = {
     // ── Game alert: add (game selected from search results) ──────────────────
     if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_add_select') {
       const { guild, member } = interaction;
-      const [appId, channelId, roleId] = interaction.values[0].split('|');
+      const [appId, channelId, roleId] = interaction.values[0].split('|||');
       const gameName = interaction.component.options.find(o => o.value === interaction.values[0])?.label || `App ${appId}`;
 
       const existing = selectOne(
@@ -187,6 +187,31 @@ module.exports = {
       const roleStr = roleId ? ` · pinging <@&${roleId}>` : '';
       return interaction.update({
         content: `✅ Now tracking **${gameName}** — updates will post in <#${channelId}>${roleStr}.`,
+        components: [],
+      });
+    }
+
+    // ── Game alert: edit (change channel/role) ───────────────────────────────
+    if (interaction.isStringSelectMenu() && interaction.customId === 'gamealert_edit_select') {
+      const { guild, member } = interaction;
+      const [subId, channelId, roleId] = interaction.values[0].split('|||');
+      const sub = selectOne('SELECT * FROM game_subscriptions WHERE id = ? AND guild_id = ?', [subId, guild.id]);
+
+      if (!sub) {
+        return interaction.update({ content: '❌ Not found — may have already been removed.', components: [] });
+      }
+
+      run('UPDATE game_subscriptions SET channel_id = ?, role_id = ? WHERE id = ?',
+        [channelId, roleId || null, sub.id]);
+
+      log('INFO', 'Game alert channel updated', { guild: guild.name, game: sub.game_name, by: member.user.tag });
+
+      const NAMES = { epic: 'Epic Free Games', steam_free: 'Steam Free Games' };
+      const name  = NAMES[sub.app_id] || sub.game_name || sub.app_id;
+      const roleStr = roleId ? ` · pinging <@&${roleId}>` : '';
+
+      return interaction.update({
+        content:    `✅ **${name}** will now post in <#${channelId}>${roleStr}.`,
         components: [],
       });
     }
@@ -243,6 +268,45 @@ module.exports = {
     if (!interaction.isButton()) return;
 
     const { guild, member } = interaction;
+
+    // ── Log button use to console and command log channel ─────────────────────
+    log('INFO', `Button: ${interaction.customId}`, {
+      user:  interaction.user.tag,
+      guild: interaction.guild?.name || 'DM',
+    });
+    if (interaction.guild) {
+      try {
+        const { getLogChannel: _glc } = require('../src/guildConfig');
+        const { EmbedBuilder: _EB2 } = require('discord.js');
+        const btnLogId = _glc(interaction.guild.id, 'commands');
+        if (btnLogId) {
+          const btnCh = await client.channels.fetch(btnLogId).catch(() => null);
+          if (btnCh?.isTextBased()) {
+            const BUTTON_LABELS = {
+              bot_join: '🔊 Join', bot_leave: '👋 Leave',
+              bot_forceleave: '🔌 Force Leave', bot_refresh: '🔄 Refresh',
+              bot_myinfo: '👤 My Info', bot_lookup: '🔍 Lookup',
+              bot_verify: '✅ Verify',
+            };
+            const label = BUTTON_LABELS[interaction.customId] || interaction.customId;
+            await btnCh.send({
+              embeds: [
+                new _EB2()
+                  .setColor(0x9C59D1)
+                  .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+                  .setTitle(`🔘 ${label}`)
+                  .addFields(
+                    { name: 'Used By', value: `${interaction.member || interaction.user} — ${interaction.user.tag}`, inline: true },
+                    { name: 'Channel', value: interaction.channel ? `<#${interaction.channel.id}>` : '—', inline: true },
+                  )
+                  .setTimestamp()
+                  .setFooter({ text: `User ID: ${interaction.user.id}` }),
+              ],
+            });
+          }
+        }
+      } catch { /* non-critical */ }
+    }
     const isAdmin = member.permissions.has(PermissionFlagsBits.ManageGuild);
 
     // ── Verify button ─────────────────────────────────────────────────────────
