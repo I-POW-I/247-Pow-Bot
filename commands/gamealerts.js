@@ -3,10 +3,11 @@
  *
  * Subcommands:
  *   game      — subscribe to patch notes for a specific Steam game
- *   freegames — subscribe to free game alerts (Epic + Steam, one embed per game)
- *   remove    — pick from current subscriptions to remove
+ *   freegames — subscribe to free game alerts (Epic + Steam)
+ *   edit      — change the channel or role for an existing alert
+ *   remove    — remove an alert
  *   list      — show all configured alerts
- *   test      — post the latest update for a subscribed game right now
+ *   test      — post the latest update for a game right now
  */
 
 const {
@@ -21,18 +22,10 @@ const {
   getHeaderImage, parseSteamContent,
 } = require('../src/platforms/steam');
 
-// Colour presets for popular games
 const GAME_COLOURS = {
-  730:     0xF4A14C, // CS2
-  570:     0xD8473E, // Dota 2
-  440:     0xCF6A32, // TF2
-  578080:  0x1D5C8B, // PUBG
-  1172470: 0xAB3024, // Apex Legends
-  1245620: 0x00AAFF, // Elden Ring
-  252490:  0x4B1C0F, // Rust
-  1086940: 0x2D6A2D, // Baldur's Gate 3
-  271590:  0x1A6B2A, // GTA V
-  1091500: 0xE8D5A3, // Cyberpunk 2077
+  730: 0xF4A14C, 570: 0xD8473E, 440: 0xCF6A32, 578080: 0x1D5C8B,
+  1172470: 0xAB3024, 1245620: 0x00AAFF, 252490: 0x4B1C0F,
+  1086940: 0x2D6A2D, 271590: 0x1A6B2A, 1091500: 0xE8D5A3,
 };
 module.exports.GAME_COLOURS = GAME_COLOURS;
 
@@ -46,55 +39,43 @@ module.exports = {
 
     .addSubcommand(sub =>
       sub.setName('game')
-        .setDescription('Get patch note alerts when a Steam game updates')
+        .setDescription('Subscribe to patch note alerts for a Steam game')
         .addStringOption(opt =>
-          opt.setName('game')
-            .setDescription('Game name to search — e.g. "Counter-Strike 2"')
-            .setRequired(true)
+          opt.setName('game').setDescription('Game name to search — e.g. "Counter-Strike 2"').setRequired(true)
         )
         .addChannelOption(opt =>
-          opt.setName('channel')
-            .setDescription('Channel to post updates in')
-            .addChannelTypes(ChannelType.GuildText)
-            .setRequired(true)
+          opt.setName('channel').setDescription('Channel to post updates in').addChannelTypes(ChannelType.GuildText).setRequired(true)
         )
         .addRoleOption(opt =>
-          opt.setName('role')
-            .setDescription('Role to ping when an update drops (optional)')
-            .setRequired(false)
+          opt.setName('role').setDescription('Role to ping when an update drops (optional)').setRequired(false)
         )
     )
 
     .addSubcommand(sub =>
       sub.setName('freegames')
-        .setDescription('Get alerted when Epic or Steam games become free')
+        .setDescription('Get alerted when Epic or Steam games become free — sets up both platforms at once')
         .addChannelOption(opt =>
-          opt.setName('channel')
-            .setDescription('Channel to post free game alerts in')
-            .addChannelTypes(ChannelType.GuildText)
-            .setRequired(true)
+          opt.setName('channel').setDescription('Channel to post free game alerts in').addChannelTypes(ChannelType.GuildText).setRequired(true)
         )
         .addRoleOption(opt =>
-          opt.setName('role')
-            .setDescription('Role to ping (optional)')
-            .setRequired(false)
+          opt.setName('role').setDescription('Role to ping (optional)').setRequired(false)
         )
     )
 
     .addSubcommand(sub =>
-      sub.setName('remove')
-        .setDescription('Remove a game alert — pick from your current list')
+      sub.setName('edit')
+        .setDescription('Change the channel or role for an existing game alert')
+        .addChannelOption(opt =>
+          opt.setName('channel').setDescription('New channel to post in').addChannelTypes(ChannelType.GuildText).setRequired(true)
+        )
+        .addRoleOption(opt =>
+          opt.setName('role').setDescription('New role to ping — leave empty to remove the ping').setRequired(false)
+        )
     )
 
-    .addSubcommand(sub =>
-      sub.setName('list')
-        .setDescription('Show all configured game alerts for this server')
-    )
-
-    .addSubcommand(sub =>
-      sub.setName('test')
-        .setDescription('Post the latest update for a subscribed game right now')
-    ),
+    .addSubcommand(sub => sub.setName('remove').setDescription('Remove a game alert'))
+    .addSubcommand(sub => sub.setName('list').setDescription('Show all configured game alerts for this server'))
+    .addSubcommand(sub => sub.setName('test').setDescription('Post the latest update for a subscribed game right now')),
 
   async execute(interaction) {
     const { guild } = interaction;
@@ -111,7 +92,7 @@ module.exports = {
 
       const results = await searchGames(query);
       if (!results.length) {
-        return interaction.editReply({ content: `❌ No results for **${query}**. Try a different name.` });
+        return interaction.editReply({ content: `❌ No results found for **${query}**. Try a different name.` });
       }
 
       const options = results.map(r => ({
@@ -131,45 +112,67 @@ module.exports = {
       });
     }
 
-    // ── Free games (Epic + Steam) ──────────────────────────────────────────────
+    // ── Free games (Epic + Steam together) ────────────────────────────────────
     if (sub === 'freegames') {
       const channel = interaction.options.getChannel('channel');
       const role    = interaction.options.getRole('role');
-      const updates = [];
+      const set     = [];
 
-      // Epic
-      const epicExisting = selectOne('SELECT id FROM game_subscriptions WHERE guild_id = ? AND app_id = ?', [guild.id, 'epic']);
-      if (epicExisting) {
-        run('UPDATE game_subscriptions SET channel_id = ?, role_id = ? WHERE id = ?', [channel.id, role?.id || null, epicExisting.id]);
-        updates.push('Epic Games (updated)');
-      } else {
-        run('INSERT INTO game_subscriptions (guild_id, app_id, game_name, channel_id, role_id) VALUES (?, ?, ?, ?, ?)',
-          [guild.id, 'epic', 'Epic Games Free Games', channel.id, role?.id || null]);
-        updates.push('Epic Games');
-      }
-
-      // Steam free
-      const steamExisting = selectOne('SELECT id FROM game_subscriptions WHERE guild_id = ? AND app_id = ?', [guild.id, 'steam_free']);
-      if (steamExisting) {
-        run('UPDATE game_subscriptions SET channel_id = ?, role_id = ? WHERE id = ?', [channel.id, role?.id || null, steamExisting.id]);
-        updates.push('Steam Free Games (updated)');
-      } else {
-        run('INSERT INTO game_subscriptions (guild_id, app_id, game_name, channel_id, role_id) VALUES (?, ?, ?, ?, ?)',
-          [guild.id, 'steam_free', 'Steam Free Games', channel.id, role?.id || null]);
-        updates.push('Steam Free Games');
+      for (const appId of ['epic', 'steam_free']) {
+        const name     = appId === 'epic' ? 'Epic Games Free Games' : 'Steam Free Games';
+        const existing = selectOne('SELECT id FROM game_subscriptions WHERE guild_id = ? AND app_id = ?', [guild.id, appId]);
+        if (existing) {
+          run('UPDATE game_subscriptions SET channel_id = ?, role_id = ? WHERE id = ?', [channel.id, role?.id || null, existing.id]);
+          set.push(`${appId === 'epic' ? '🎮 Epic' : '🎯 Steam'} (updated)`);
+        } else {
+          run('INSERT INTO game_subscriptions (guild_id, app_id, game_name, channel_id, role_id) VALUES (?, ?, ?, ?, ?)',
+            [guild.id, appId, name, channel.id, role?.id || null]);
+          set.push(`${appId === 'epic' ? '🎮 Epic' : '🎯 Steam'}`);
+        }
       }
 
       log('INFO', 'Free game alerts configured', { guild: guild.name, by: interaction.user.tag });
-
       return interaction.reply({
         content: [
           `✅ Free game alerts set up in <#${channel.id}>${role ? ` · pinging <@&${role.id}>` : ''}:`,
-          `• 🎮 Epic Games Store — notified when free games change weekly`,
-          `• 🎯 Steam — notified when paid games go free`,
+          set.map(s => `• ${s}`).join('\n'),
           ``,
-          `Each game gets its own post with a claim button.`,
+          `Each game gets its own post. Use \`/gamealerts edit\` to change the channel later.`,
         ].join('\n'),
         flags: [MessageFlags.Ephemeral],
+      });
+    }
+
+    // ── Edit existing alert ────────────────────────────────────────────────────
+    if (sub === 'edit') {
+      const channel = interaction.options.getChannel('channel');
+      const role    = interaction.options.getRole('role');
+      const subs    = selectAll('SELECT * FROM game_subscriptions WHERE guild_id = ?', [guild.id]);
+
+      if (!subs.length) {
+        return interaction.reply({
+          content: '📭 No game alerts configured. Add one with `/gamealerts game` or `/gamealerts freegames` first.',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+
+      const NAMES = { epic: '🎮 Epic Free Games', steam_free: '🎯 Steam Free Games' };
+      const options = subs.map(s => ({
+        label:       (NAMES[s.app_id] || s.game_name || s.app_id).slice(0, 100),
+        value:       `${s.id}|||${channel.id}|||${role?.id || ''}`,
+        description: `Currently posting to channel ID ${s.channel_id}`,
+        emoji:       s.app_id === 'epic' || s.app_id === 'steam_free' ? '🎮' : '🎯',
+      }));
+
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('gamealert_edit_select')
+        .setPlaceholder('Which alert do you want to update?')
+        .addOptions(options);
+
+      return interaction.reply({
+        content:    `Pick which alert to move to <#${channel.id}>:`,
+        components: [new ActionRowBuilder().addComponents(menu)],
+        flags:      [MessageFlags.Ephemeral],
       });
     }
 
@@ -180,12 +183,12 @@ module.exports = {
         return interaction.reply({ content: '📭 No game alerts configured.', flags: [MessageFlags.Ephemeral] });
       }
 
-      const NAMES = { epic: 'Epic Free Games', steam_free: 'Steam Free Games' };
+      const NAMES = { epic: '🎮 Epic Free Games', steam_free: '🎯 Steam Free Games' };
       const options = subs.map(s => ({
         label:       (NAMES[s.app_id] || s.game_name || s.app_id).slice(0, 100),
         value:       `${s.id}`,
         description: `Posts to channel ID: ${s.channel_id}`,
-        emoji:       s.app_id === 'epic' || s.app_id === 'steam_free' ? '🎮' : '🎯',
+        emoji:       '🗑️',
       }));
 
       const menu = new StringSelectMenuBuilder()
@@ -194,7 +197,7 @@ module.exports = {
         .addOptions(options);
 
       return interaction.reply({
-        content:    'Select a game alert to remove:',
+        content:    'Select the alert you want to remove:',
         components: [new ActionRowBuilder().addComponents(menu)],
         flags:      [MessageFlags.Ephemeral],
       });
@@ -207,9 +210,10 @@ module.exports = {
         return interaction.reply({ content: '📭 No game alerts configured.', flags: [MessageFlags.Ephemeral] });
       }
 
-      const NAMES = { epic: '🎮 Epic Free Games', steam_free: '🎯 Steam Free Games' };
+      const ICONS = { epic: '🎮', steam_free: '🎯' };
+      const NAMES = { epic: 'Epic Free Games', steam_free: 'Steam Free Games' };
       const lines = subs.map(s =>
-        `${NAMES[s.app_id] || `🎯 ${s.game_name || s.app_id}`} → <#${s.channel_id}>${s.role_id ? ` · <@&${s.role_id}>` : ''}`
+        `${ICONS[s.app_id] || '🎯'} **${NAMES[s.app_id] || s.game_name}** → <#${s.channel_id}>${s.role_id ? ` · <@&${s.role_id}>` : ''}`
       );
 
       return interaction.reply({
@@ -218,7 +222,7 @@ module.exports = {
             .setColor(0x5865F2)
             .setTitle('🎮 Game Alert Subscriptions')
             .setDescription(lines.join('\n'))
-            .setFooter({ text: `${subs.length} alert(s) configured` })
+            .setFooter({ text: `${subs.length} alert(s) · Use /gamealerts edit to change a channel` })
             .setTimestamp(),
         ],
         flags: [MessageFlags.Ephemeral],
@@ -255,20 +259,13 @@ module.exports = {
   },
 };
 
-/**
- * Post the latest update for a game.
- * @param {boolean} alreadyDeferred - true when called from a select menu handler
- *   that already called interaction.deferReply()
- */
 async function runTest(interaction, sub, alreadyDeferred = false) {
-  if (!alreadyDeferred) {
-    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-  }
+  if (!alreadyDeferred) await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   const news = await getGameNews(sub.app_id, 5);
   if (!news?.length) {
     return interaction.editReply({
-      content: `❌ No recent patch notes or updates found for **${sub.game_name}**.\nSteam might not have any matching updates yet — try again after the next game update.`,
+      content: `❌ No patch notes found for **${sub.game_name}**.\nSteam may not have any matching updates yet — try after the next game update.`,
     });
   }
 
@@ -303,11 +300,7 @@ async function runTest(interaction, sub, alreadyDeferred = false) {
       );
     }
 
-    return interaction.editReply({
-      content:    `✅ Latest **${sub.game_name}** update:`,
-      embeds:     [embed],
-      components: [row],
-    });
+    return interaction.editReply({ content: `✅ Latest **${sub.game_name}** update:`, embeds: [embed], components: [row] });
   } catch (err) {
     return interaction.editReply({ content: `❌ Test failed: ${err.message}` });
   }
