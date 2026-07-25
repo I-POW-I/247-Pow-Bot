@@ -1,16 +1,17 @@
 /**
- * Simple timestamped logger.
- * Usage: log('INFO', 'Bot started')
- *        log('VOICE', 'Joined channel', { guild: 'MyServer', channel: 'General' })
+ * Timestamped logger for Discloud console.
+ *
+ * Format: [timestamp] LEVEL | message | key=value key=value
+ * Levels: INFO, WARN, ERROR, VOICE, GHOST, HEART
  */
 
-const ICONS = {
-  INFO:  '-',
-  WARN:  '⚠️ ',
-  ERROR: '🔴',
-  VOICE: '🔊',
-  GHOST: '👻',
-  HEART: '💓',
+const LEVELS = {
+  INFO:  'INFO ',
+  WARN:  'WARN ',
+  ERROR: 'ERROR',
+  VOICE: 'VOICE',
+  GHOST: 'GHOST',
+  HEART: 'HEART',
 };
 
 /**
@@ -19,13 +20,13 @@ const ICONS = {
  * @param {Record<string, any>} [context]
  */
 function log(level, message, context = {}) {
-  const ts = new Date().toISOString();
-  const icon = ICONS[level] || '  ';
+  const ts  = new Date().toISOString();
+  const lvl = LEVELS[level] || 'INFO ';
   const ctx = Object.keys(context).length
-    ? ' | ' + Object.entries(context).map(([k, v]) => `${k}=${v}`).join(' ')
+    ? ' | ' + Object.entries(context).map(([k, v]) => `${k}=${v}`).join(' | ')
     : '';
 
-  console.log(`[${ts}] ${icon} [${level}] ${message}${ctx}`);
+  console.log(`[${ts}] ${lvl} | ${message}${ctx}`);
 }
 
 module.exports = { log };
