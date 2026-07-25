@@ -1,14 +1,7 @@
-/**
- * Logs deleted messages to the configured messages log channel.
- * Only works for cached messages (sent while bot was running).
- * Requires Message Content Intent enabled in Developer Portal.
- */
-
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
 const { log }           = require('../src/logger');
 const { getLogChannel } = require('../src/guildConfig');
 
-// Try to find who deleted the message via audit log
 async function getDeleter(guild, targetUserId, channelId, windowMs = 5000) {
   try {
     const logs  = await guild.fetchAuditLogs({ type: AuditLogEvent.MessageDelete, limit: 5 });
@@ -17,7 +10,6 @@ async function getDeleter(guild, targetUserId, channelId, windowMs = 5000) {
       e.extra?.channel?.id === channelId &&
       (Date.now() - e.createdTimestamp) < windowMs
     );
-    // If executor is the same as the author, they deleted their own message
     if (!entry || entry.executor?.id === targetUserId) return null;
     return `${entry.executor} — ${entry.executor.tag}`;
   } catch { return null; }
@@ -42,7 +34,7 @@ module.exports = {
   async execute(message) {
     if (!message.guild || message.author?.bot) return;
 
-    const guild     = message.guild;
+    const guild = message.guild;
     const channelId = getLogChannel(guild.id, 'messages');
     if (!channelId) return;
 
@@ -56,15 +48,12 @@ module.exports = {
     const content     = message.content || null;
     const attachments = [...(message.attachments?.values() || [])];
     const messageAge  = getMessageAge(message.createdAt);
-    const deletedBy   = author
-      ? await getDeleter(guild, author.id, message.channelId)
-      : null;
+    const deletedBy   = author ? await getDeleter(guild, author.id, message.channelId) : null;
 
     const embed = new EmbedBuilder()
       .setColor(0xED4245)
       .setTitle('Message Deleted')
-      .setTimestamp()
-      .setFooter({ text: `Message ID: ${message.id}` });
+      .setTimestamp();
 
     if (author) {
       embed
@@ -73,9 +62,9 @@ module.exports = {
     }
 
     embed.addFields(
-      { name: 'Author',   value: author ? `${message.member || author} — ${author.tag}` : 'Unknown', inline: true },
-      { name: 'Channel',  value: `<#${message.channelId}>`,                                            inline: true },
-      { name: 'Sent',     value: messageAge || '—',                                                    inline: true },
+      { name: 'Author',  value: author ? `${message.member || author} — ${author.tag}` : 'Unknown', inline: true },
+      { name: 'Channel', value: `<#${message.channelId}>`,                                           inline: true },
+      { name: 'Sent',    value: messageAge || '—',                                                   inline: true },
     );
 
     if (deletedBy) {
@@ -91,7 +80,7 @@ module.exports = {
     } else {
       embed.addFields({
         name:   'Content',
-        value:  '*Not cached — message was sent before the bot restarted or something else happened.*',
+        value:  '*Message not cached — sent before the bot last started*',
         inline: false,
       });
     }
@@ -106,7 +95,7 @@ module.exports = {
     try {
       await logChannel.send({ embeds: [embed] });
     } catch (err) {
-      log('ERROR', 'Failed to send message delete log', { guild: guild.name, error: err.message });
+      log('WARN', 'Failed to send message delete log', { error: err.message });
     }
   },
 };
