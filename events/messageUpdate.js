@@ -1,9 +1,3 @@
-/**
- * Logs edited messages showing before and after content.
- * Only works for cached messages (sent while bot was running).
- * Requires Message Content Intent enabled in Developer Portal.
- */
-
 const { Events, EmbedBuilder } = require('discord.js');
 const { log }           = require('../src/logger');
 const { getLogChannel } = require('../src/guildConfig');
@@ -13,10 +7,9 @@ module.exports = {
   once: false,
 
   async execute(oldMessage, newMessage) {
-    // Ignore DMs, bots, embeds loading (Discord auto-embeds links)
     if (!newMessage.guild) return;
     if (newMessage.author?.bot) return;
-    if (oldMessage.content === newMessage.content) return; // Embed load, not a real edit
+    if (oldMessage.content === newMessage.content) return;
 
     const guild     = newMessage.guild;
     const channelId = getLogChannel(guild.id, 'messages');
@@ -36,7 +29,6 @@ module.exports = {
       .setColor(0x5865F2)
       .setTitle('Message Edited')
       .setTimestamp()
-      .setFooter({ text: `Message ID: ${newMessage.id}` })
       .setAuthor({ name: author.tag, iconURL: author.displayAvatarURL({ dynamic: true }) })
       .setThumbnail(author.displayAvatarURL({ dynamic: true, size: 256 }))
       .addFields(
@@ -58,7 +50,7 @@ module.exports = {
     try {
       await logChannel.send({ embeds: [embed] });
     } catch (err) {
-      log('ERROR', 'Failed to send message edit log', { guild: guild.name, error: err.message });
+      log('WARN', 'Failed to send message edit log', { error: err.message });
     }
   },
 };
