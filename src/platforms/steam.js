@@ -1,5 +1,13 @@
 /**
  * Steam API wrapper — no key required.
+ *
+ * Steam patch notes come in several formats depending on the game:
+ *   - BBCode: [h2]Header[/h2][list][*]\Item[/list]
+ *   - HTML:   <h3>Header</h3><ul><li>Item</li></ul>
+ *   - Mixed:  [b]Header[/b] followed by HTML lists
+ *   - Plain:  Raw text with \Item as inline bullet separators
+ *
+ * The parser handles ALL of these correctly.
  */
 
 const { log } = require('../logger');
@@ -53,14 +61,15 @@ async function getAppDetails(appId) {
 
 const UPDATE_KEYWORDS = [
   'update', 'patch', 'hotfix', 'hot fix', 'changelog',
-  'maintenance', 'build', 'notes', 'fix', 'release',
+  'maintenance', 'build', 'notes', 'fix', 'release', 'series',
 ];
 
 function isActualUpdate(item) {
   const title = (item.title || '').toLowerCase();
-  const isOfficialFeed = item.feedname === 'steam_community_announcements'
-    || item.feedname === 'steam_updates'
-    || item.feed_type === 1;
+  const isOfficialFeed =
+    item.feedname === 'steam_community_announcements' ||
+    item.feedname === 'steam_updates' ||
+    item.feed_type === 1;
   if (!isOfficialFeed) return false;
   return UPDATE_KEYWORDS.some(kw => title.includes(kw));
 }
@@ -82,10 +91,8 @@ async function getSteamFreeGames() {
   try {
     const data = await steamFetch('https://store.steampowered.com/api/featuredcategories?cc=US&l=en');
     const freeGames = new Map();
-    const sectionsToCheck = ['specials', 'top_sellers', 'new_releases', 'under10'];
-    for (const section of sectionsToCheck) {
-      const items = data?.[section]?.items || [];
-      for (const item of items) {
+    for (const section of ['specials', 'top_sellers', 'new_releases', 'under10']) {
+      for (const item of (data?.[section]?.items || [])) {
         if (item.discount_percent === 100 && item.final_price === 0 && item.type === 0 && !freeGames.has(item.id)) {
           freeGames.set(item.id, {
             appid:          item.id,
@@ -110,100 +117,117 @@ function getHeaderImage(appId) {
 }
 
 /**
- * Parse Steam BBCode/HTML into clean Discord markdown.
+ * Parse Steam BBCode + HTML into clean Discord markdown.
  *
- * Steam CS2-style content uses MULTIPLE formats:
- *   [*]\Item   — BBCode list item with backslash prefix (common in CS2)
- *   \Item      — standalone backslash bullet (no [*] tag at all)
- *   .\Item     — period then backslash = next bullet item
- *   . \Item    — period space backslash = next bullet item
- *   )\Item     — closing paren then backslash = next bullet item
- *   <li>Item   — HTML list items
- *
- * We handle ALL these cases to produce clean readable Discord output.
+ * Handles ALL Steam content formats:
+ *   HTML headers   <h1-6>Header</h1-6>     → **Header** on own line
+ *   HTML bold      <strong>Text</strong>    → **Text** on own line (section headers)
+ *   HTML italic    <em>Text</em>            → *Text*
+ *   HTML lists     <ul><li>Item</li></ul>   → • Item
+ *   HTML para      <p>Text</p>              → Text with line break
+ *   BBCode headers [h1-h3]Header[/h1-h3]   → **Header** on own line
+ *   BBCode bold    [b]Text[/b]              → **Text** on own line
+ *   BBCode lists   [list][*]Item[/list]     → • Item
+ *   BBCode [*]\    [*]\Item                 → • Item (CS2 style)
+ *   Raw backslash  \Item                    → • Item
+ *   Inline \sep    text.\NextItem           → text.\n• NextItem
  */
 function parseSteamContent(raw, maxLength = 1000) {
   if (!raw) return { text: '', imageUrl: null, youtubeUrl: null };
   let text = raw;
 
-  // ── Extract image ──────────────────────────────────────────────────────────
-  const clanImgMatch    = text.match(/\{STEAM_CLAN_IMAGE\}\/([^\s\[\]\n,{]+)/i);
-  const regularImgMatch = text.match(/\[img\](https?:\/\/[^\[]+?)\[\/img\]/i);
-  let imageUrl = null;
-  if (clanImgMatch)       imageUrl = `https://clan.akamai.steamstatic.com/images/${clanImgMatch[1]}`;
-  else if (regularImgMatch) imageUrl = regularImgMatch[1].trim();
+  // ── Extract image before any processing ────────────────────────────────────
+  const clanImg = text.match(/\{STEAM_CLAN_IMAGE\}\/([^\s\[\]\n,{]+)/i);
+  const regImg  = text.match(/\[img\](https?:\/\/[^\[]+?)\[\/img\]/i);
+  let imageUrl  = clanImg
+    ? `https://clan.akamai.steamstatic.com/images/${clanImg[1]}`
+    : regImg ? regImg[1].trim() : null;
+
+  // Also check for og:image or media in content
+  if (!imageUrl) {
+    const srcImg = text.match(/src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|gif|webp))['"]/i);
+    if (srcImg) imageUrl = srcImg[1];
+  }
 
   // ── Extract YouTube ────────────────────────────────────────────────────────
-  const ytMatch    = text.match(/\[previewyoutube=([A-Za-z0-9_-]+)/i);
+  const ytMatch    = text.match(/\[previewyoutube=([A-Za-z0-9_-]+)/i) ||
+                     text.match(/youtube\.com\/watch\?v=([A-Za-z0-9_-]+)/i) ||
+                     text.match(/youtu\.be\/([A-Za-z0-9_-]+)/i);
   const youtubeUrl = ytMatch ? `https://youtube.com/watch?v=${ytMatch[1]}` : null;
 
-  // ── Normalise all line endings and literal \n ──────────────────────────────
+  // ── Normalise line endings ─────────────────────────────────────────────────
   text = text.replace(/\\n/g, '\n').replace(/\r\n|\r/g, '\n');
 
-  // ── Strip image and video tags ─────────────────────────────────────────────
+  // ── Strip image/video tags ─────────────────────────────────────────────────
   text = text
     .replace(/\{STEAM_CLAN_IMAGE\}\/[^\s\[\]\n,{]+/gi, '')
     .replace(/\[img\][^\[]*?\[\/img\]/gis, '')
     .replace(/\[previewyoutube[^\]]*\][^\[]*?\[\/previewyoutube\]/gis, '');
 
-  // ── HTML list items → bullets BEFORE stripping HTML ───────────────────────
+  // ── HTML: convert BEFORE stripping tags ────────────────────────────────────
+  // Headers → bold on own line
+  text = text.replace(/<h[1-6][^>]*>\s*(.*?)\s*<\/h[1-6]>/gis, '\n**$1**\n');
+
+  // <strong> and <b> used as section headers → bold on own line
+  text = text.replace(/<(?:strong|b)[^>]*>\s*(.*?)\s*<\/(?:strong|b)>/gis, '\n**$1**');
+
+  // <em> and <i> → italic
+  text = text.replace(/<(?:em|i)[^>]*>\s*(.*?)\s*<\/(?:em|i)>/gis, '*$1*');
+
+  // <p> → paragraph break
+  text = text.replace(/<p[^>]*>/gi, '\n').replace(/<\/p>/gi, '\n');
+
+  // List items → bullets
   text = text
-    .replace(/<li[^>]*>/gi,  '\n• ')
-    .replace(/<\/li>/gi,     '')
-    .replace(/<ul[^>]*>/gi,  '\n')
-    .replace(/<\/ul>/gi,     '\n')
-    .replace(/<ol[^>]*>/gi,  '\n')
-    .replace(/<\/ol>/gi,     '\n');
+    .replace(/<li[^>]*>/gi,    '\n• ')
+    .replace(/<\/li>/gi,       '')
+    .replace(/<[ou]l[^>]*>/gi, '\n')
+    .replace(/<\/[ou]l>/gi,    '\n');
+
+  // Line breaks
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+
+  // Strip ALL remaining HTML tags
+  text = text.replace(/<[^>]+>/g, '');
 
   // ── BBCode → Discord markdown ──────────────────────────────────────────────
   text = text
+    // Headers → bold on own line
     .replace(/\[h[1-3]\]\s*(.*?)\s*\[\/h[1-3]\]/gis, '\n**$1**\n')
+    // [b] used as sub-headers → bold on own line
     .replace(/\[b\]\s*(.*?)\s*\[\/b\]/gis,           '\n**$1**')
     .replace(/\[i\]\s*(.*?)\s*\[\/i\]/gis,           '*$1*')
     .replace(/\[u\]\s*(.*?)\s*\[\/u\]/gis,           '__$1__')
     .replace(/\[strike\]\s*(.*?)\s*\[\/strike\]/gis, '~~$1~~')
+    // Links
     .replace(/\[url=([^\]]+)\]\s*(.*?)\s*\[\/url\]/gis, '[$2]($1)')
     .replace(/\[url\](.*?)\[\/url\]/gis, '$1')
-    // BBCode lists — strip [*] and the optional backslash prefix that follows
-    .replace(/\[list\]/gi,           '\n')
-    .replace(/\[\/list\]/gi,         '\n')
-    .replace(/\s*\[\*\]\s*\\?/g,     '\n• ')
-    // HTML
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<p[^>]*>/gi,   '\n')
-    .replace(/<\/p>/gi,      '')
-    .replace(/<[^>]+>/g,     '')
-    // Strip remaining BBCode tags
-    .replace(/\[[^\]]{1,30}\]/g, '')
-    // HTML entities
-    .replace(/&amp;/g,  '&').replace(/&lt;/g,   '<').replace(/&gt;/g,   '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g,  "'").replace(/&nbsp;/g, ' ');
+    // Lists — [*] with optional \ prefix
+    .replace(/\[list\]/gi,        '\n')
+    .replace(/\[\/list\]/gi,      '\n')
+    .replace(/\s*\[\*\]\s*\\?/g,  '\n• ')
+    // Strip remaining BBCode
+    .replace(/\[[^\]]{1,30}\]/g, '');
 
-  // ── Handle Steam's \Bullet inline format ───────────────────────────────────
-  // CS2 and some other games use \ as inline bullet markers within content.
-  // These appear in several patterns we need to handle:
-
-  // Pattern 1: content starts with \ before a capital letter
-  // e.g. "\The bomb damage..." → "• The bomb damage..."
-  text = text.replace(/^\\([A-Z])/m, '• $1');
-
-  // Pattern 2: ". \" or ".\", or ")\" followed by a capital = new bullet item
-  // e.g. "audible.\The bomb explosion" → "audible.\n• The bomb explosion"
-  // e.g. "Notes)\Added Workshop" → "Notes)\n• Added Workshop"
-  text = text.replace(/([.)])\s*\\([A-Z])/g, '$1\n• $2');
-
-  // Pattern 3: any remaining " \" before a capital letter mid-sentence
-  // e.g. "fire. \FachwerkUpdated" → "fire.\n• FachwerkUpdated"
-  text = text.replace(/\s+\\([A-Z])/g, '\n• $1');
-
-  // Pattern 4: standalone backslash at start of a line
-  text = text.replace(/^\\/gm, '• ');
-
-  // ── Clean up ───────────────────────────────────────────────────────────────
+  // ── HTML entities ──────────────────────────────────────────────────────────
   text = text
-    .replace(/\n{3,}/g,   '\n\n')  // max 2 consecutive blank lines
-    .replace(/[ \t]+\n/g, '\n')    // trailing spaces on lines
-    .replace(/\n[ \t]+/g, '\n')    // leading spaces after newlines
+    .replace(/&amp;/g,   '&').replace(/&lt;/g,    '<').replace(/&gt;/g,   '>')
+    .replace(/&quot;/g,  '"').replace(/&#39;/g,   "'").replace(/&nbsp;/g, ' ')
+    .replace(/&mdash;/g, '—').replace(/&ndash;/g, '–').replace(/&hellip;/g, '...');
+
+  // ── Handle raw \ bullet format ─────────────────────────────────────────────
+  // CS2 and some other games use \Item as inline bullet separators
+  text = text
+    .replace(/^\\([A-Z])/m,           '• $1')       // \Item at start of string
+    .replace(/([.!?)])\s*\\([A-Z])/g, '$1\n• $2')   // .\Item or )\Item
+    .replace(/\s+\\([A-Z])/g,         '\n• $1')      // space \Item mid-line
+    .replace(/^\\/gm,                 '• ');          // any \ at start of line
+
+  // ── Clean up whitespace ────────────────────────────────────────────────────
+  text = text
+    .replace(/\n{3,}/g,   '\n\n')   // max 2 consecutive blank lines
+    .replace(/[ \t]+\n/g, '\n')     // trailing spaces
+    .replace(/\n[ \t]+/g, '\n')     // leading spaces after newline
     .trim();
 
   // ── Truncate cleanly at a newline ──────────────────────────────────────────
