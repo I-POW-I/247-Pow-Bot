@@ -1,16 +1,7 @@
-/**
- * Fires when a member leaves or is removed from the server.
- *
- * Does two things:
- *   1. Posts a leave image card to the configured welcome/leave channel
- *   2. Posts an admin log embed to the members log channel showing
- *      who left, how long they were here, their roles, and if they were kicked
- */
-
 const { Events, EmbedBuilder, AuditLogEvent, AttachmentBuilder } = require('discord.js');
-const { log }            = require('../src/logger');
+const { log }                    = require('../src/logger');
 const { getLogChannel, getGuildConfig } = require('../src/guildConfig');
-const { generateCard }   = require('../src/imageGenerator');
+const { generateCard }           = require('../src/imageGenerator');
 
 async function getKicker(guild, userId, windowMs = 5000) {
   try {
@@ -33,14 +24,13 @@ module.exports = {
   async execute(member) {
     const { guild } = member;
     const config    = getGuildConfig(guild.id);
+    const kick      = await getKicker(guild, member.id);
 
-    const kick = await getKicker(guild, member.id);
-
-    // ── 1. Leave image card ────────────────────────────────────────────────────
+    // ── 1. Leave image card ───────────────────────────────────────────────────
     const leaveChannelId = config.leaveChannelId || config.welcomeChannelId;
     if (leaveChannelId) {
       try {
-        const channel     = await guild.channels.fetch(leaveChannelId);
+        const channel = await guild.channels.fetch(leaveChannelId);
         if (channel?.isTextBased()) {
           const displayName = member.displayName || member.user.username;
           const avatarUrl   = member.user.displayAvatarURL({ dynamic: false, size: 512 });
@@ -48,11 +38,11 @@ module.exports = {
           await channel.send({ files: [new AttachmentBuilder(buffer, { name: 'leave.png' })] });
         }
       } catch (err) {
-        log('WARN', 'Failed to send leave card', { guild: guild.name, error: err.message });
+        log('WARN', 'Failed to send leave card', { error: err.message });
       }
     }
 
-    // ── 2. Admin log embed ─────────────────────────────────────────────────────
+    // ── 2. Admin log embed ────────────────────────────────────────────────────
     const logChannelId = getLogChannel(guild.id, 'members');
     if (!logChannelId) return;
 
@@ -60,7 +50,7 @@ module.exports = {
       const logChannel = await guild.channels.fetch(logChannelId);
       if (!logChannel?.isTextBased()) return;
 
-      const user     = member.user;
+      const user    = member.user;
       const joinedAt = member.joinedAt;
       const timeInServer = joinedAt ? (() => {
         const diff = Date.now() - joinedAt.getTime();
@@ -86,8 +76,7 @@ module.exports = {
           { name: 'Member Count',   value: `${guild.memberCount}`,   inline: true  },
           { name: '\u200b',         value: '\u200b',                 inline: true  },
         )
-        .setTimestamp()
-        .setFooter({ text: `User ID: ${user.id}` });
+        .setTimestamp();
 
       if (kick) {
         embed.addFields(
@@ -101,9 +90,8 @@ module.exports = {
       }
 
       await logChannel.send({ embeds: [embed] });
-
     } catch (err) {
-      log('WARN', 'Failed to send member leave log', { guild: guild.name, error: err.message });
+      log('WARN', 'Failed to send member leave log', { error: err.message });
     }
   },
 };
