@@ -107,14 +107,13 @@ module.exports = {
                 new EmbedBuilder()
                   .setColor(0x5865F2)
                   .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-                  .setTitle(`🔹 /${interaction.commandName}`)
+                  .setTitle(`/${interaction.commandName}`)
                   .addFields(
-                    { name: 'Used By',  value: `${interaction.member || interaction.user} — ${interaction.user.tag}`, inline: true },
-                    { name: 'Channel',  value: interaction.channel ? `<#${interaction.channel.id}>` : '—', inline: true },
-                    { name: 'Options',  value: cmdArgs || 'None', inline: false },
+                    { name: 'Used By', value: `${interaction.member || interaction.user} — ${interaction.user.tag}`, inline: true },
+                    { name: 'Channel', value: interaction.channel ? `<#${interaction.channel.id}>` : '—',            inline: true },
+                    ...(cmdArgs ? [{ name: 'Options', value: cmdArgs, inline: false }] : []),
                   )
-                  .setTimestamp()
-                  .setFooter({ text: `User ID: ${interaction.user.id}` }),
+                  .setTimestamp(),
               ],
             });
           }
@@ -294,13 +293,12 @@ module.exports = {
                 new _EB2()
                   .setColor(0x9C59D1)
                   .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-                  .setTitle(`🔘 ${label}`)
+                  .setTitle(`Button: ${label}`)
                   .addFields(
                     { name: 'Used By', value: `${interaction.member || interaction.user} — ${interaction.user.tag}`, inline: true },
-                    { name: 'Channel', value: interaction.channel ? `<#${interaction.channel.id}>` : '—', inline: true },
+                    { name: 'Channel', value: interaction.channel ? `<#${interaction.channel.id}>` : '—',            inline: true },
                   )
-                  .setTimestamp()
-                  .setFooter({ text: `User ID: ${interaction.user.id}` }),
+                  .setTimestamp(),
               ],
             });
           }
