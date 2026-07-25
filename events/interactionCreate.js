@@ -59,7 +59,7 @@ async function joinChannel(targetChannel, guild, member, client, interaction) {
     setStats(guild.id, { joinedAt: entry.joinedAt, reconnectCount: 0 });
 
     client.user.setPresence({
-      status: 'online',
+      status: 'dnd',
       activities: [{ name: `🔊 ${targetChannel.name}`, type: ActivityType.Custom }],
     });
 
