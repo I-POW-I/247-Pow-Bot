@@ -106,7 +106,7 @@ module.exports = {
                   .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
                   .addFields(fields)
                   .setTimestamp()
-                  .setFooter({ text: `User ID: ${member.user.id}` }),
+                  
               ],
             });
           }
