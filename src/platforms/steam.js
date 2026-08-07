@@ -106,8 +106,8 @@ function parseSteamContent(raw, maxLength=1000) {
     .replace(/\[[^\]]{1,30}\]/g,'');
   // Entities
   text=text.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').replace(/&mdash;/g,'—').replace(/&ndash;/g,'–');
-  // Strip any tags reintroduced by entity decoding (e.g. &lt;script&gt; -> <script>)
-  text=text.replace(/<[^>]+>/g,'');
+  // Neutralize any HTML delimiters reintroduced by entity decoding (e.g. &lt;script&gt; -> script)
+  text=text.replace(/[<>]/g,'');
   // Raw \ bullets (CS2 style)
   text=text.replace(/^\\([A-Z])/m,'• $1').replace(/([.!?)])\s*\\([A-Z])/g,'$1\n• $2').replace(/\s+\\([A-Z])/g,'\n• $1').replace(/^\\/gm,'• ');
   text=text.replace(/\n{3,}/g,'\n\n').replace(/[ \t]+\n/g,'\n').replace(/\n[ \t]+/g,'\n').trim();
