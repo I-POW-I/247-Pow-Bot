@@ -87,7 +87,14 @@ module.exports = {
       if (!command) return;
 
       // ── Log every slash command use to console and command log channel ────────
-      const cmdArgs = interaction.options?.data?.map(o => `${o.name}:${o.value ?? '[subcommand]'}`).join(' ') || '';
+      function resolveArg(o, guild) {
+        if (o.type === 1 || o.type === 2) return '[' + o.name + ']';
+        if (o.type === 7) { const ch = guild?.channels.cache.get(String(o.value)); return o.name + ':#' + (ch?.name || o.value); }
+        if (o.type === 8) { const r = guild?.roles.cache.get(String(o.value)); return o.name + ':@' + (r?.name || o.value); }
+        if (o.type === 6) { const m = guild?.members.cache.get(String(o.value)); return o.name + ':@' + (m?.user?.username || o.value); }
+        return o.value !== undefined ? o.name + ':' + o.value : o.name;
+      }
+      const cmdArgs = interaction.options?.data?.map(o => resolveArg(o, interaction.guild)).join(' ') || '';
       log('INFO', `/${interaction.commandName}${cmdArgs ? ' ' + cmdArgs : ''}`, {
         user:    interaction.user.tag,
         guild:   interaction.guild?.name || 'DM',
